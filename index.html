@@ -33,7 +33,7 @@
         .downloads.show { display: block; }
         .dl-btn { display: block; padding: 10px; margin: 6px 0; background: #27ae60; color: white; text-decoration: none; border-radius: 6px; text-align: center; font-weight: bold; font-size: 13px; }
         .dl-btn:hover { background: #219a52; }
-        .log { background: #2c3e50; color: #ecf0f1; padding: 10px; border-radius: 6px; margin-top: 12px; font-size: 11px; font-family: monospace; max-height: 160px; overflow-y: auto; display: none; line-height: 1.4; }
+        .log { background: #2c3e50; color: #ecf0f1; padding: 10px; border-radius: 6px; margin-top: 12px; font-size: 11px; font-family: monospace; max-height: 200px; overflow-y: auto; display: none; line-height: 1.4; }
         .log.show { display: block; }
         .l-ok { color: #2ecc71; }
         .l-err { color: #e74c3c; }
@@ -58,8 +58,8 @@
         <div class="file-ok" id="ok2"></div>
     </div>
 
-    <button class="btn btn-go" id="btnGo" disabled onclick="processar()">▶ PROCESSAR</button>
-    <button class="btn btn-clear" onclick="limpar()">✕ LIMPAR</button>
+    <button class="btn btn-go" id="btnGo" disabled onclick="processar()">&#9654; PROCESSAR</button>
+    <button class="btn btn-clear" onclick="limpar()">&#10005; LIMPAR</button>
 
     <div class="bar-wrap" id="barWrap"><div class="bar" id="bar"></div></div>
     <div class="msg" id="msg"></div>
@@ -71,12 +71,10 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
-// Configura o worker do PDF.js DEPOIS que o script carregou
 window.addEventListener('load', function() {
     if (window.pdfjsLib) {
         window.pdfjsLib.GlobalWorkerOptions.workerSrc =
             'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-        console.log('PDF.js OK');
     }
 });
 
@@ -85,16 +83,15 @@ var f1 = null, f2 = null;
 document.getElementById('z1').addEventListener('change', function() {
     if (this.files && this.files.length > 0) {
         f1 = this.files[0];
-        document.getElementById('ok1').textContent = '✅ ' + f1.name;
+        document.getElementById('ok1').textContent = 'OK: ' + f1.name;
         document.getElementById('ok1').className = 'file-ok show';
         checkBtn();
     }
 });
-
 document.getElementById('z2').addEventListener('change', function() {
     if (this.files && this.files.length > 0) {
         f2 = this.files[0];
-        document.getElementById('ok2').textContent = '✅ ' + f2.name;
+        document.getElementById('ok2').textContent = 'OK: ' + f2.name;
         document.getElementById('ok2').className = 'file-ok show';
         checkBtn();
     }
@@ -151,19 +148,50 @@ async function lerPDF(buf) {
             try {
                 var pg = await pdf.getPage(i);
                 var tc = await pg.getTextContent();
-                var pageTxt = tc.items.map(function(x){ return x.str; }).join(' ');
-                txt += pageTxt + '\n';
+                txt += tc.items.map(function(x){ return x.str; }).join(' ') + '\n';
             } catch(e) {}
         }
         return txt.trim();
-    } catch(e) {
-        return '';
-    }
+    } catch(e) { return ''; }
 }
 
+// ─── CÓDIGO DE BARRAS ────────────────────────────────────────────────────────
+// Normaliza: remove tudo que não for dígito e valida tamanho mínimo
+function normBarcode(str) {
+    if (!str) return null;
+    var d = str.replace(/[^\d]/g, '');
+    return d.length >= 44 ? d : null;
+}
+
+function extrairCodigoBarras(txt) {
+    // 1) Contínuo: 44-48 dígitos seguidos
+    var m = txt.match(/\d{44,48}/);
+    if (m) return normBarcode(m[0]);
+
+    // 2) "Codigo de Barras: XXXXX" (comprovante BB)
+    var m2 = txt.match(/c[o\u00f3]digo\s*de\s*barras[:\s]+([\d\s\|\.\-]+)/i);
+    if (m2) {
+        var d = normBarcode(m2[1]);
+        if (d) return d;
+    }
+
+    // 3) Blocos separados por espaço/pipe/ponto no texto
+    // ex: "868500000018 | 921051174006 | 143419040080 | 880001428070"
+    // ex: "00190.00009 03738.976103 01086.395173 3 14010000136254"
+    var m3 = txt.match(/\d[\d\s\|\.\-]{40,}\d/);
+    if (m3) {
+        var d = normBarcode(m3[0]);
+        if (d) return d;
+    }
+
+    return null;
+}
+
+// ─── VALOR ───────────────────────────────────────────────────────────────────
 function normVal(v) {
     if (!v) return null;
-    v = String(v).trim();
+    // Remove espaços internos: "2.166, 04" → "2.166,04"
+    v = String(v).trim().replace(/,\s+/g, ',').replace(/\.\s+/g, '.');
     if (v.indexOf(',') !== -1) {
         v = v.replace(/\./g, '').replace(',', '.');
     } else if (v.indexOf('.') !== -1) {
@@ -180,24 +208,51 @@ function normVal(v) {
 }
 
 function extrairValor(str) {
+    // Normaliza espaços antes de tudo: "R2.166, 04" → "R2.166,04"
+    str = str.replace(/,\s+/g, ',').replace(/\.\s+/g, '.');
     var pats = [
-        /[\d.,]+(?=\s*\.pdf)/i,
-        /r\$\s*([\d.,]+)/i,
-        /valor[:\s]+([\d.,]+)/i,
-        /[\d.,]+\s*$/m
+        /[\d][\d.,]*(?=\s*\.pdf)/i,             // antes do .pdf no nome
+        /valor\s+total[:\s]+([\d.,]+)/i,         // "Valor Total: 192,10" (comprovante BB)
+        /\(=\)\s*valor\s*do\s*documento[^\d]*([\d.,]+)/i, // "Valor do Documento 1.362,54" (boleto BB)
+        /r\$\s*([\d.,]+)/i,                      // R$ 192,10
+        /valor[:\s]+([\d.,]+)/i,                 // Valor: 192,10
+        /[\d.,]+\s*$/m                           // fim da linha
     ];
     for (var i = 0; i < pats.length; i++) {
         var m = str.match(pats[i]);
         if (m) {
-            var v = normVal(m[1] || m[0]);
+            var raw = (m[1] || m[0]).replace(/\s/g, '');
+            var v = normVal(raw);
             if (v) return v;
         }
     }
     return null;
 }
 
+// ─── MATCHING ────────────────────────────────────────────────────────────────
+function encontrarMatch(n1, n2, txt1, txt2) {
+    // PRIORIDADE 1: Código de barras (mais confiável)
+    var cb1 = extrairCodigoBarras(txt1);
+    var cb2 = extrairCodigoBarras(txt2);
+
+    if (cb1 && cb2) {
+        // Igualdade exata
+        if (cb1 === cb2) return { tipo: 'CODIGO DE BARRAS', detalhe: cb1.substring(0,20) + '...' };
+        // Contenção: um está dentro do outro (diferença de formatação)
+        if (cb1.indexOf(cb2) >= 0 || cb2.indexOf(cb1) >= 0)
+            return { tipo: 'CODIGO DE BARRAS (parcial)', detalhe: cb1.substring(0,20) + '...' };
+    }
+
+    // PRIORIDADE 2: Valor monetário
+    var v1 = extrairValor(n1 + ' ' + txt1);
+    var v2 = extrairValor(n2 + ' ' + txt2);
+    if (v1 && v2 && v1 === v2) return { tipo: 'VALOR', detalhe: 'R$ ' + v1 };
+
+    return null;
+}
+
+// ─── MERGE PDF ───────────────────────────────────────────────────────────────
 async function mergePDFs(bytes1, bytes2) {
-    // PDFLib aceita Uint8Array diretamente — mais seguro que ArrayBuffer
     var doc1 = await PDFLib.PDFDocument.load(bytes1);
     var doc2 = await PDFLib.PDFDocument.load(bytes2);
     var merged = await PDFLib.PDFDocument.create();
@@ -208,10 +263,11 @@ async function mergePDFs(bytes1, bytes2) {
     return await merged.save();
 }
 
+// ─── PROCESSAR ───────────────────────────────────────────────────────────────
 async function processar() {
     if (!f1 || !f2) { alert('Selecione os 2 arquivos'); return; }
 
-    setMsg('⏳ Processando...', 'proc');
+    setMsg('Processando...', 'proc');
     setBar(2);
     document.getElementById('dls').className = 'downloads';
     document.getElementById('log').className = 'log';
@@ -232,12 +288,11 @@ async function processar() {
 
         for (var i = 0; i < nomes1.length; i++) {
             var n = nomes1[i];
-            // Uint8Array preserva os bytes — ArrayBuffer é destruído pelo pdfjs ao ler
             var bytes = await zip1.files[n].async('uint8array');
             var txt = await lerPDF(bytes.slice(0).buffer);
             pdfs1[n] = { buf: bytes, txt: txt };
-            if (!txt) addLog('⚠ PDF-imagem (sem texto): ' + n.split('/').pop(), 'l-warn');
-            setBar(5 + Math.round((++cnt / total) * 45));
+            if (!txt) addLog('PDF-imagem (sem texto): ' + n.split('/').pop(), 'l-warn');
+            setBar(5 + Math.round((++cnt / total) * 40));
         }
 
         for (var i = 0; i < nomes2.length; i++) {
@@ -245,64 +300,69 @@ async function processar() {
             var bytes = await zip2.files[n].async('uint8array');
             var txt = await lerPDF(bytes.slice(0).buffer);
             pdfs2[n] = { buf: bytes, txt: txt };
-            if (!txt) addLog('⚠ PDF-imagem (sem texto): ' + n.split('/').pop(), 'l-warn');
-            setBar(5 + Math.round((++cnt / total) * 45));
+            if (!txt) addLog('PDF-imagem (sem texto): ' + n.split('/').pop(), 'l-warn');
+            setBar(5 + Math.round((++cnt / total) * 40));
         }
 
-        addLog('Procurando correspondências por valor...', 'l-info');
+        addLog('Procurando correspondencias...', 'l-info');
         var pares = [], usados2 = {};
 
         for (var n1 in pdfs1) {
             var p1 = pdfs1[n1];
-            var v1 = extrairValor(n1 + ' ' + p1.txt);
-            if (!v1) { addLog('Sem valor: ' + n1.split('/').pop(), 'l-warn'); continue; }
+            var match = null;
+            var matchN2 = null;
 
             for (var n2 in pdfs2) {
                 if (usados2[n2]) continue;
                 var p2 = pdfs2[n2];
-                var v2 = extrairValor(n2 + ' ' + p2.txt);
-                if (v1 === v2) {
-                    pares.push({ n1:n1, n2:n2, d1:p1.buf, d2:p2.buf, val:v1 });
-                    usados2[n2] = true;
-                    addLog('✅ R$' + v1 + ' → ' + n1.split('/').pop().substring(0,22) + ' + ' + n2.split('/').pop().substring(0,22), 'l-ok');
-                    break;
+                var result = encontrarMatch(n1, n2, p1.txt, p2.txt);
+                if (result) {
+                    match = result;
+                    matchN2 = n2;
+                    // Se for código de barras, já é o melhor possível — para aqui
+                    if (result.tipo.indexOf('CODIGO') >= 0) break;
                 }
+            }
+
+            if (match && matchN2) {
+                pares.push({ n1:n1, n2:matchN2, d1:p1.buf, d2:pdfs2[matchN2].buf, match:match });
+                usados2[matchN2] = true;
+                addLog('[' + match.tipo + '] ' + n1.split('/').pop().substring(0,25) + ' + ' + matchN2.split('/').pop().substring(0,25), 'l-ok');
+            } else {
+                addLog('Pendente: ' + n1.split('/').pop(), 'l-warn');
             }
         }
 
-        addLog('Gerando PDFs unidos...', 'l-info');
+        addLog('Gerando PDFs unidos (' + pares.length + ' pares)...', 'l-info');
         var finalZip = new JSZip(), pendZip = new JSZip();
 
         for (var i = 0; i < pares.length; i++) {
             var p = pares[i];
             try {
                 var bytes = await mergePDFs(p.d1, p.d2);
-                finalZip.file(String(i+1).padStart(3,'0') + '_R$' + p.val + '.pdf', bytes);
+                var label = p.match.tipo === 'VALOR' ? '_R$' + p.match.detalhe.replace('R$ ','') : '_CB';
+                finalZip.file(String(i+1).padStart(3,'0') + label + '.pdf', bytes);
             } catch(e) {
-                addLog('❌ Erro no par ' + (i+1) + ': ' + e.message, 'l-err');
+                addLog('Erro no par ' + (i+1) + ': ' + e.message, 'l-err');
             }
-            setBar(50 + Math.round(((i+1) / pares.length) * 40));
+            setBar(50 + Math.round(((i+1) / Math.max(pares.length,1)) * 40));
         }
 
         // Pendentes
         var paresN1 = pares.map(function(p){ return p.n1; });
         for (var n1 in pdfs1) {
-            if (paresN1.indexOf(n1) < 0) {
-                pendZip.file('GUIA_' + n1.split('/').pop(), pdfs1[n1].buf);
-                addLog('Pendente guia: ' + n1.split('/').pop(), 'l-warn');
-            }
+            if (paresN1.indexOf(n1) < 0) pendZip.file('GUIA_' + n1.split('/').pop(), pdfs1[n1].buf);
         }
         for (var n2 in pdfs2) {
-            if (!usados2[n2]) {
-                pendZip.file('COMPROV_' + n2.split('/').pop(), pdfs2[n2].buf);
-                addLog('Pendente comprov: ' + n2.split('/').pop(), 'l-warn');
-            }
+            if (!usados2[n2]) pendZip.file('COMPROV_' + n2.split('/').pop(), pdfs2[n2].buf);
         }
 
-        // Relatório
+        // Relatorio
         var rel = 'CONCILIACAO\n' + new Date().toLocaleString('pt-BR') + '\nPares: ' + pares.length + '\n\n';
         pares.forEach(function(p, i) {
-            rel += (i+1) + '. R$' + p.val + '\n   ' + p.n1.split('/').pop() + '\n   ' + p.n2.split('/').pop() + '\n\n';
+            rel += (i+1) + '. [' + p.match.tipo + '] ' + p.match.detalhe + '\n';
+            rel += '   GUIA: ' + p.n1.split('/').pop() + '\n';
+            rel += '   COMP: ' + p.n2.split('/').pop() + '\n\n';
         });
         finalZip.file('RELATORIO.txt', rel);
 
@@ -310,17 +370,17 @@ async function processar() {
         var bP = await pendZip.generateAsync({ type: 'blob' });
 
         document.getElementById('dls').innerHTML =
-            '<a class="dl-btn" href="' + URL.createObjectURL(bF) + '" download="PAREADOS.zip">⬇ Baixar PDFs Pareados (' + pares.length + ' pares)</a>' +
-            '<a class="dl-btn" href="' + URL.createObjectURL(bP) + '" download="PENDENTES.zip">⬇ Baixar Pendentes</a>';
+            '<a class="dl-btn" href="' + URL.createObjectURL(bF) + '" download="PAREADOS.zip">Baixar PDFs Pareados (' + pares.length + ' pares)</a>' +
+            '<a class="dl-btn" href="' + URL.createObjectURL(bP) + '" download="PENDENTES.zip">Baixar Pendentes</a>';
         document.getElementById('dls').className = 'downloads show';
 
         setBar(100);
-        setMsg('✅ Pronto! ' + pares.length + ' pares encontrados.', 'ok');
-        addLog('✅ Concluído!', 'l-ok');
+        setMsg('Pronto! ' + pares.length + ' pares encontrados.', 'ok');
+        addLog('Concluido!', 'l-ok');
 
     } catch(e) {
-        setMsg('❌ Erro: ' + e.message, 'err');
-        addLog('❌ ' + e.message, 'l-err');
+        setMsg('Erro: ' + e.message, 'err');
+        addLog('ERRO: ' + e.message, 'l-err');
         console.error(e);
     }
 }
