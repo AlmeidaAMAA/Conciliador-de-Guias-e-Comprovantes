@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conciliador de Boletos</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #4a90d9; padding: 20px; min-height: 100vh; }
+        .box { max-width: 520px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.2); }
+        h1 { color: #333; text-align: center; margin-bottom: 5px; font-size: 22px; }
+        .sub { text-align: center; color: #888; font-size: 13px; margin-bottom: 25px; }
+        .upload-area { border: 2px dashed #4a90d9; border-radius: 8px; padding: 20px 15px; margin: 12px 0; text-align: center; background: #f5f8ff; }
+        .upload-area label { font-weight: bold; color: #333; display: block; margin-bottom: 8px; font-size: 14px; }
+        .upload-area input[type=file] { font-size: 13px; width: 100%; cursor: pointer; }
+        .file-ok { color: #27ae60; font-size: 12px; font-weight: bold; margin-top: 6px; display: none; }
+        .file-ok.show { display: block; }
+        .btn { display: block; width: 100%; padding: 13px; border: none; border-radius: 6px; font-size: 15px; font-weight: bold; cursor: pointer; margin-top: 15px; }
+        .btn-go { background: #4a90d9; color: white; }
+        .btn-go:hover:not(:disabled) { background: #357abd; }
+        .btn-go:disabled { background: #bbb; cursor: not-allowed; }
+        .btn-clear { background: #e74c3c; color: white; margin-top: 8px; }
+        .btn-clear:hover { background: #c0392b; }
+        .bar-wrap { background: #eee; border-radius: 4px; height: 8px; margin-top: 15px; display: none; }
+        .bar-wrap.show { display: block; }
+        .bar { height: 100%; background: #4a90d9; border-radius: 4px; width: 0%; transition: width 0.2s; }
+        .msg { margin-top: 12px; padding: 10px; border-radius: 6px; font-size: 13px; font-weight: bold; display: none; text-align: center; }
+        .msg.show { display: block; }
+        .msg.ok { background: #d4edda; color: #155724; }
+        .msg.err { background: #f8d7da; color: #721c24; }
+        .msg.proc { background: #d1ecf1; color: #0c5460; }
+        .downloads { margin-top: 15px; display: none; }
+        .downloads.show { display: block; }
+        .dl-btn { display: block; padding: 10px; margin: 6px 0; background: #27ae60; color: white; text-decoration: none; border-radius: 6px; text-align: center; font-weight: bold; font-size: 13px; }
+        .dl-btn:hover { background: #219a52; }
+        .log { background: #2c3e50; color: #ecf0f1; padding: 10px; border-radius: 6px; margin-top: 12px; font-size: 11px; font-family: monospace; max-height: 160px; overflow-y: auto; display: none; line-height: 1.4; }
+        .log.show { display: block; }
+        .l-ok { color: #2ecc71; }
+        .l-err { color: #e74c3c; }
+        .l-warn { color: #f39c12; }
+        .l-info { color: #3498db; }
+    </style>
+</head>
+<body>
+<div class="box">
+    <h1>📋 Conciliador de Boletos</h1>
+    <p class="sub">Selecione os 2 arquivos ZIP para processar</p>
+
+    <div class="upload-area">
+        <label>1º ZIP — Boletos / Guias</label>
+        <input type="file" id="z1" accept=".zip,application/zip">
+        <div class="file-ok" id="ok1"></div>
+    </div>
+
+    <div class="upload-area">
+        <label>2º ZIP — Comprovantes</label>
+        <input type="file" id="z2" accept=".zip,application/zip">
+        <div class="file-ok" id="ok2"></div>
+    </div>
+
+    <button class="btn btn-go" id="btnGo" disabled onclick="processar()">▶ PROCESSAR</button>
+    <button class="btn btn-clear" onclick="limpar()">✕ LIMPAR</button>
+
+    <div class="bar-wrap" id="barWrap"><div class="bar" id="bar"></div></div>
+    <div class="msg" id="msg"></div>
+    <div class="downloads" id="dls"></div>
+    <div class="log" id="log"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+// Configura o worker do PDF.js DEPOIS que o script carregou
+window.addEventListener('load', function() {
+    if (window.pdfjsLib) {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+            'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        console.log('PDF.js OK');
+    }
+});
+
+var f1 = null, f2 = null;
+
+document.getElementById('z1').addEventListener('change', function() {
+    if (this.files && this.files.length > 0) {
+        f1 = this.files[0];
+        document.getElementById('ok1').textContent = '✅ ' + f1.name;
+        document.getElementById('ok1').className = 'file-ok show';
+        checkBtn();
+    }
+});
+
+document.getElementById('z2').addEventListener('change', function() {
+    if (this.files && this.files.length > 0) {
+        f2 = this.files[0];
+        document.getElementById('ok2').textContent = '✅ ' + f2.name;
+        document.getElementById('ok2').className = 'file-ok show';
+        checkBtn();
+    }
+});
+
+function checkBtn() {
+    document.getElementById('btnGo').disabled = !(f1 && f2);
+}
+
+function limpar() {
+    f1 = null; f2 = null;
+    document.getElementById('z1').value = '';
+    document.getElementById('z2').value = '';
+    document.getElementById('ok1').className = 'file-ok';
+    document.getElementById('ok2').className = 'file-ok';
+    document.getElementById('barWrap').className = 'bar-wrap';
+    document.getElementById('bar').style.width = '0%';
+    document.getElementById('msg').className = 'msg';
+    document.getElementById('dls').className = 'downloads';
+    document.getElementById('dls').innerHTML = '';
+    document.getElementById('log').className = 'log';
+    document.getElementById('log').innerHTML = '';
+    checkBtn();
+}
+
+function addLog(txt, cls) {
+    var log = document.getElementById('log');
+    log.className = 'log show';
+    var d = document.createElement('div');
+    d.className = cls || 'l-info';
+    d.textContent = txt;
+    log.appendChild(d);
+    log.scrollTop = log.scrollHeight;
+}
+
+function setMsg(txt, cls) {
+    var m = document.getElementById('msg');
+    m.textContent = txt;
+    m.className = 'msg show ' + cls;
+}
+
+function setBar(pct) {
+    document.getElementById('barWrap').className = 'bar-wrap show';
+    document.getElementById('bar').style.width = pct + '%';
+}
+
+async function lerPDF(buf) {
+    try {
+        var lib = window.pdfjsLib;
+        if (!lib) return '';
+        var pdf = await lib.getDocument({ data: buf }).promise;
+        var txt = '';
+        for (var i = 1; i <= Math.min(pdf.numPages, 3); i++) {
+            try {
+                var pg = await pdf.getPage(i);
+                var tc = await pg.getTextContent();
+                var pageTxt = tc.items.map(function(x){ return x.str; }).join(' ');
+                txt += pageTxt + '\n';
+            } catch(e) {}
+        }
+        return txt.trim();
+    } catch(e) {
+        return '';
+    }
+}
+
+function normVal(v) {
+    if (!v) return null;
+    v = String(v).trim();
+    if (v.indexOf(',') !== -1) {
+        v = v.replace(/\./g, '').replace(',', '.');
+    } else if (v.indexOf('.') !== -1) {
+        var parts = v.split('.');
+        var last = parts[parts.length - 1];
+        if (last.length === 2) {
+            v = parts.slice(0, -1).join('') + '.' + last;
+        } else {
+            v = v.replace(/\./g, '');
+        }
+    }
+    var n = parseFloat(v);
+    return (!isNaN(n) && n > 0) ? n.toFixed(2) : null;
+}
+
+function extrairValor(str) {
+    var pats = [
+        /[\d.,]+(?=\s*\.pdf)/i,
+        /r\$\s*([\d.,]+)/i,
+        /valor[:\s]+([\d.,]+)/i,
+        /[\d.,]+\s*$/m
+    ];
+    for (var i = 0; i < pats.length; i++) {
+        var m = str.match(pats[i]);
+        if (m) {
+            var v = normVal(m[1] || m[0]);
+            if (v) return v;
+        }
+    }
+    return null;
+}
+
+async function mergePDFs(bytes1, bytes2) {
+    // PDFLib aceita Uint8Array diretamente — mais seguro que ArrayBuffer
+    var doc1 = await PDFLib.PDFDocument.load(bytes1);
+    var doc2 = await PDFLib.PDFDocument.load(bytes2);
+    var merged = await PDFLib.PDFDocument.create();
+    var pg1 = await merged.copyPages(doc1, doc1.getPageIndices());
+    pg1.forEach(function(p) { merged.addPage(p); });
+    var pg2 = await merged.copyPages(doc2, doc2.getPageIndices());
+    pg2.forEach(function(p) { merged.addPage(p); });
+    return await merged.save();
+}
+
+async function processar() {
+    if (!f1 || !f2) { alert('Selecione os 2 arquivos'); return; }
+
+    setMsg('⏳ Processando...', 'proc');
+    setBar(2);
+    document.getElementById('dls').className = 'downloads';
+    document.getElementById('log').className = 'log';
+    document.getElementById('log').innerHTML = '';
+
+    try {
+        addLog('Abrindo ZIPs...', 'l-info');
+        var zip1 = await JSZip.loadAsync(f1);
+        var zip2 = await JSZip.loadAsync(f2);
+
+        var nomes1 = Object.keys(zip1.files).filter(function(n){ return n.toLowerCase().endsWith('.pdf'); });
+        var nomes2 = Object.keys(zip2.files).filter(function(n){ return n.toLowerCase().endsWith('.pdf'); });
+        addLog('ZIP1: ' + nomes1.length + ' PDFs  |  ZIP2: ' + nomes2.length + ' PDFs', 'l-ok');
+        setBar(5);
+
+        var pdfs1 = {}, pdfs2 = {};
+        var total = nomes1.length + nomes2.length, cnt = 0;
+
+        for (var i = 0; i < nomes1.length; i++) {
+            var n = nomes1[i];
+            // Uint8Array preserva os bytes — ArrayBuffer é destruído pelo pdfjs ao ler
+            var bytes = await zip1.files[n].async('uint8array');
+            var txt = await lerPDF(bytes.slice(0).buffer);
+            pdfs1[n] = { buf: bytes, txt: txt };
+            if (!txt) addLog('⚠ PDF-imagem (sem texto): ' + n.split('/').pop(), 'l-warn');
+            setBar(5 + Math.round((++cnt / total) * 45));
+        }
+
+        for (var i = 0; i < nomes2.length; i++) {
+            var n = nomes2[i];
+            var bytes = await zip2.files[n].async('uint8array');
+            var txt = await lerPDF(bytes.slice(0).buffer);
+            pdfs2[n] = { buf: bytes, txt: txt };
+            if (!txt) addLog('⚠ PDF-imagem (sem texto): ' + n.split('/').pop(), 'l-warn');
+            setBar(5 + Math.round((++cnt / total) * 45));
+        }
+
+        addLog('Procurando correspondências por valor...', 'l-info');
+        var pares = [], usados2 = {};
+
+        for (var n1 in pdfs1) {
+            var p1 = pdfs1[n1];
+            var v1 = extrairValor(n1 + ' ' + p1.txt);
+            if (!v1) { addLog('Sem valor: ' + n1.split('/').pop(), 'l-warn'); continue; }
+
+            for (var n2 in pdfs2) {
+                if (usados2[n2]) continue;
+                var p2 = pdfs2[n2];
+                var v2 = extrairValor(n2 + ' ' + p2.txt);
+                if (v1 === v2) {
+                    pares.push({ n1:n1, n2:n2, d1:p1.buf, d2:p2.buf, val:v1 });
+                    usados2[n2] = true;
+                    addLog('✅ R$' + v1 + ' → ' + n1.split('/').pop().substring(0,22) + ' + ' + n2.split('/').pop().substring(0,22), 'l-ok');
+                    break;
+                }
+            }
+        }
+
+        addLog('Gerando PDFs unidos...', 'l-info');
+        var finalZip = new JSZip(), pendZip = new JSZip();
+
+        for (var i = 0; i < pares.length; i++) {
+            var p = pares[i];
+            try {
+                var bytes = await mergePDFs(p.d1, p.d2);
+                finalZip.file(String(i+1).padStart(3,'0') + '_R$' + p.val + '.pdf', bytes);
+            } catch(e) {
+                addLog('❌ Erro no par ' + (i+1) + ': ' + e.message, 'l-err');
+            }
+            setBar(50 + Math.round(((i+1) / pares.length) * 40));
+        }
+
+        // Pendentes
+        var paresN1 = pares.map(function(p){ return p.n1; });
+        for (var n1 in pdfs1) {
+            if (paresN1.indexOf(n1) < 0) {
+                pendZip.file('GUIA_' + n1.split('/').pop(), pdfs1[n1].buf);
+                addLog('Pendente guia: ' + n1.split('/').pop(), 'l-warn');
+            }
+        }
+        for (var n2 in pdfs2) {
+            if (!usados2[n2]) {
+                pendZip.file('COMPROV_' + n2.split('/').pop(), pdfs2[n2].buf);
+                addLog('Pendente comprov: ' + n2.split('/').pop(), 'l-warn');
+            }
+        }
+
+        // Relatório
+        var rel = 'CONCILIACAO\n' + new Date().toLocaleString('pt-BR') + '\nPares: ' + pares.length + '\n\n';
+        pares.forEach(function(p, i) {
+            rel += (i+1) + '. R$' + p.val + '\n   ' + p.n1.split('/').pop() + '\n   ' + p.n2.split('/').pop() + '\n\n';
+        });
+        finalZip.file('RELATORIO.txt', rel);
+
+        var bF = await finalZip.generateAsync({ type: 'blob' });
+        var bP = await pendZip.generateAsync({ type: 'blob' });
+
+        document.getElementById('dls').innerHTML =
+            '<a class="dl-btn" href="' + URL.createObjectURL(bF) + '" download="PAREADOS.zip">⬇ Baixar PDFs Pareados (' + pares.length + ' pares)</a>' +
+            '<a class="dl-btn" href="' + URL.createObjectURL(bP) + '" download="PENDENTES.zip">⬇ Baixar Pendentes</a>';
+        document.getElementById('dls').className = 'downloads show';
+
+        setBar(100);
+        setMsg('✅ Pronto! ' + pares.length + ' pares encontrados.', 'ok');
+        addLog('✅ Concluído!', 'l-ok');
+
+    } catch(e) {
+        setMsg('❌ Erro: ' + e.message, 'err');
+        addLog('❌ ' + e.message, 'l-err');
+        console.error(e);
+    }
+}
+</script>
+</body>
+</html>
