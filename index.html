@@ -1,535 +1,476 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Conciliador de Boletos</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: Arial, sans-serif; background: #4a90d9; padding: 20px; min-height: 100vh; }
-        .box { max-width: 560px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.2); }
-        h1 { color: #333; text-align: center; margin-bottom: 5px; font-size: 22px; }
-        .sub { text-align: center; color: #888; font-size: 13px; margin-bottom: 25px; }
-        .upload-area { border: 2px dashed #4a90d9; border-radius: 8px; padding: 20px 15px; margin: 12px 0; text-align: center; background: #f5f8ff; }
-        .upload-area label { font-weight: bold; color: #333; display: block; margin-bottom: 8px; font-size: 14px; }
-        .upload-area input[type=file] { font-size: 13px; width: 100%; cursor: pointer; }
-        .file-ok { color: #27ae60; font-size: 12px; font-weight: bold; margin-top: 6px; display: none; }
-        .file-ok.show { display: block; }
-        .btn { display: block; width: 100%; padding: 13px; border: none; border-radius: 6px; font-size: 15px; font-weight: bold; cursor: pointer; margin-top: 15px; }
-        .btn-go { background: #4a90d9; color: white; }
-        .btn-go:hover:not(:disabled) { background: #357abd; }
-        .btn-go:disabled { background: #bbb; cursor: not-allowed; }
-        .btn-clear { background: #e74c3c; color: white; margin-top: 8px; }
-        .btn-clear:hover { background: #c0392b; }
-        .bar-wrap { background: #eee; border-radius: 4px; height: 8px; margin-top: 15px; display: none; }
-        .bar-wrap.show { display: block; }
-        .bar { height: 100%; background: #4a90d9; border-radius: 4px; width: 0%; transition: width 0.2s; }
-        .msg { margin-top: 12px; padding: 10px; border-radius: 6px; font-size: 13px; font-weight: bold; display: none; text-align: center; }
-        .msg.show { display: block; }
-        .msg.ok { background: #d4edda; color: #155724; }
-        .msg.err { background: #f8d7da; color: #721c24; }
-        .msg.proc { background: #d1ecf1; color: #0c5460; }
-        .downloads { margin-top: 15px; display: none; }
-        .downloads.show { display: block; }
-        .dl-btn { display: block; padding: 10px; margin: 6px 0; background: #27ae60; color: white; text-decoration: none; border-radius: 6px; text-align: center; font-weight: bold; font-size: 13px; }
-        .dl-btn:hover { background: #219a52; }
-        .dl-img { background: #f39c12; }
-        .dl-img:hover { background: #d68910; }
-        .log { background: #2c3e50; color: #ecf0f1; padding: 10px; border-radius: 6px; margin-top: 12px; font-size: 11px; font-family: monospace; max-height: 220px; overflow-y: auto; display: none; line-height: 1.5; }
-        .log.show { display: block; }
-        .l-ok { color: #2ecc71; }
-        .l-err { color: #e74c3c; }
-        .l-warn { color: #f39c12; }
-        .l-info { color: #3498db; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Conciliador de Boletos</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:Arial,sans-serif;background:#2c3e50;padding:20px;min-height:100vh}
+.box{max-width:600px;margin:0 auto;background:white;padding:30px;border-radius:12px;box-shadow:0 8px 40px rgba(0,0,0,0.4)}
+h1{color:#2c3e50;text-align:center;margin-bottom:4px;font-size:22px}
+.sub{text-align:center;color:#888;font-size:12px;margin-bottom:24px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.drop{border:2px dashed #4a90d9;border-radius:8px;padding:18px 12px;text-align:center;cursor:pointer;background:#f5f8ff;transition:.2s}
+.drop:hover,.drop.over{background:#ddeeff;border-color:#1a6fb5}
+.drop.ok{border-color:#27ae60;background:#eafaf1}
+.drop label{font-weight:bold;color:#333;display:block;margin-bottom:6px;font-size:13px;pointer-events:none}
+.drop input{font-size:12px;width:100%;cursor:pointer}
+.fnm{color:#27ae60;font-size:11px;font-weight:bold;margin-top:5px;display:none}
+.fnm.v{display:block}
+.btns{display:grid;grid-template-columns:3fr 1fr;gap:10px;margin-top:4px}
+.btn{padding:12px;border:none;border-radius:6px;font-size:14px;font-weight:bold;cursor:pointer;transition:.2s}
+.bgo{background:#4a90d9;color:white}.bgo:hover:not(:disabled){background:#2176c7}
+.bgo:disabled{background:#bbb;cursor:not-allowed}
+.bcl{background:#e74c3c;color:white}.bcl:hover{background:#c0392b}
+.bwrap{background:#eee;border-radius:4px;height:8px;margin-top:14px;display:none}
+.bwrap.v{display:block}.bfill{height:100%;background:#4a90d9;border-radius:4px;width:0;transition:width .15s}
+.smsg{margin-top:10px;padding:9px 12px;border-radius:6px;font-size:13px;font-weight:bold;display:none;text-align:center}
+.smsg.v{display:block}.smsg.ok{background:#d4edda;color:#155724}
+.smsg.er{background:#f8d7da;color:#721c24}.smsg.pr{background:#d1ecf1;color:#0c5460}
+.dls{margin-top:12px;display:none}.dls.v{display:block}
+.db{display:block;padding:10px;margin:5px 0;color:white;text-decoration:none;border-radius:6px;text-align:center;font-weight:bold;font-size:13px}
+.db.g{background:#27ae60}.db.g:hover{background:#1e8449}
+.db.w{background:#f39c12}.db.w:hover{background:#d68910}
+.db.r{background:#e74c3c}.db.r:hover{background:#c0392b}
+.log{background:#1a252f;color:#ecf0f1;padding:10px;border-radius:6px;margin-top:12px;font-size:11px;font-family:monospace;max-height:240px;overflow-y:auto;display:none;line-height:1.5}
+.log.v{display:block}
+.ok{color:#2ecc71}.er{color:#e74c3c}.wn{color:#f39c12}.if{color:#74b9ff}
+</style>
 </head>
 <body>
 <div class="box">
-    <h1>Conciliador de Boletos</h1>
-    <p class="sub">Selecione os 2 arquivos ZIP para processar</p>
+  <h1>Conciliador de Boletos</h1>
+  <p class="sub">Precisao nivel financeiro/juridico — selecione os 2 ZIPs</p>
 
-    <div class="upload-area">
-        <label>1 ZIP - Boletos / Guias</label>
-        <input type="file" id="z1" accept=".zip,application/zip">
-        <div class="file-ok" id="ok1"></div>
+  <div class="row">
+    <div class="drop" id="d1">
+      <label>ZIP 1 — Guias / Boletos</label>
+      <input type="file" id="z1" accept=".zip,application/zip">
+      <div class="fnm" id="fn1"></div>
     </div>
-    <div class="upload-area">
-        <label>2 ZIP - Comprovantes</label>
-        <input type="file" id="z2" accept=".zip,application/zip">
-        <div class="file-ok" id="ok2"></div>
+    <div class="drop" id="d2">
+      <label>ZIP 2 — Comprovantes</label>
+      <input type="file" id="z2" accept=".zip,application/zip">
+      <div class="fnm" id="fn2"></div>
     </div>
+  </div>
 
-    <button class="btn btn-go" id="btnGo" disabled onclick="processar()">PROCESSAR</button>
-    <button class="btn btn-clear" onclick="limpar()">LIMPAR</button>
+  <div class="btns">
+    <button class="btn bgo" id="bg" disabled onclick="run()">PROCESSAR</button>
+    <button class="btn bcl" onclick="reset()">LIMPAR</button>
+  </div>
 
-    <div class="bar-wrap" id="barWrap"><div class="bar" id="bar"></div></div>
-    <div class="msg" id="msg"></div>
-    <div class="downloads" id="dls"></div>
-    <div class="log" id="log"></div>
+  <div class="bwrap" id="bw"><div class="bfill" id="bf"></div></div>
+  <div class="smsg" id="sm"></div>
+  <div class="dls" id="dls"></div>
+  <div class="log" id="lg"></div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
-window.addEventListener('load', function() {
-    if (window.pdfjsLib) {
-        window.pdfjsLib.GlobalWorkerOptions.workerSrc =
-            'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-    }
+// ─── INIT ────────────────────────────────────────────────────────────────────
+window.addEventListener('load', function(){
+  if(window.pdfjsLib)
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc=
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 });
 
-var f1 = null, f2 = null;
+var F1=null, F2=null;
 
-document.getElementById('z1').addEventListener('change', function() {
-    if (this.files && this.files.length > 0) {
-        f1 = this.files[0];
-        document.getElementById('ok1').textContent = 'OK: ' + f1.name;
-        document.getElementById('ok1').className = 'file-ok show';
-        checkBtn();
-    }
-});
-document.getElementById('z2').addEventListener('change', function() {
-    if (this.files && this.files.length > 0) {
-        f2 = this.files[0];
-        document.getElementById('ok2').textContent = 'OK: ' + f2.name;
-        document.getElementById('ok2').className = 'file-ok show';
-        checkBtn();
-    }
+// Upload via click
+document.getElementById('z1').addEventListener('change',function(){ setF(1,this.files[0]); });
+document.getElementById('z2').addEventListener('change',function(){ setF(2,this.files[0]); });
+
+// Drag-and-drop
+['d1','d2'].forEach(function(id){
+  var el=document.getElementById(id), num=id==='d1'?1:2;
+  el.addEventListener('dragover',function(e){ e.preventDefault(); el.classList.add('over'); });
+  el.addEventListener('dragleave',function(){ el.classList.remove('over'); });
+  el.addEventListener('drop',function(e){
+    e.preventDefault(); el.classList.remove('over');
+    if(e.dataTransfer.files.length) setF(num, e.dataTransfer.files[0]);
+  });
 });
 
-function checkBtn() { document.getElementById('btnGo').disabled = !(f1 && f2); }
-
-function limpar() {
-    f1 = null; f2 = null;
-    ['z1','z2'].forEach(function(id){ document.getElementById(id).value = ''; });
-    ['ok1','ok2'].forEach(function(id){ document.getElementById(id).className = 'file-ok'; });
-    document.getElementById('barWrap').className = 'bar-wrap';
-    document.getElementById('bar').style.width = '0%';
-    document.getElementById('msg').className = 'msg';
-    document.getElementById('dls').className = 'downloads';
-    document.getElementById('dls').innerHTML = '';
-    document.getElementById('log').className = 'log';
-    document.getElementById('log').innerHTML = '';
-    checkBtn();
+function setF(n, file){
+  if(!file) return;
+  if(n===1){ F1=file; document.getElementById('fn1').textContent='OK: '+file.name; document.getElementById('fn1').className='fnm v'; document.getElementById('d1').classList.add('ok'); }
+  else     { F2=file; document.getElementById('fn2').textContent='OK: '+file.name; document.getElementById('fn2').className='fnm v'; document.getElementById('d2').classList.add('ok'); }
+  document.getElementById('bg').disabled=!(F1&&F2);
 }
 
-function addLog(txt, cls) {
-    var log = document.getElementById('log');
-    log.className = 'log show';
-    var d = document.createElement('div');
-    d.className = cls || 'l-info';
-    d.textContent = txt;
-    log.appendChild(d);
-    log.scrollTop = log.scrollHeight;
+function reset(){
+  F1=null; F2=null;
+  ['z1','z2'].forEach(function(i){ document.getElementById(i).value=''; });
+  ['fn1','fn2'].forEach(function(i){ document.getElementById(i).className='fnm'; });
+  ['d1','d2'].forEach(function(i){ document.getElementById(i).classList.remove('ok'); });
+  document.getElementById('bw').className='bwrap';
+  document.getElementById('bf').style.width='0%';
+  document.getElementById('sm').className='smsg';
+  document.getElementById('dls').className='dls';
+  document.getElementById('dls').innerHTML='';
+  document.getElementById('lg').className='log';
+  document.getElementById('lg').innerHTML='';
+  document.getElementById('bg').disabled=true;
 }
 
-function setMsg(txt, cls) {
-    var m = document.getElementById('msg');
-    m.textContent = txt;
-    m.className = 'msg show ' + (cls || '');
+// ─── LOG ─────────────────────────────────────────────────────────────────────
+function log(t,c){
+  var lg=document.getElementById('lg');
+  lg.className='log v';
+  var d=document.createElement('div');
+  d.className=c||'if';
+  d.textContent=t;
+  lg.appendChild(d);
+  lg.scrollTop=lg.scrollHeight;
+}
+function msg(t,c){ var m=document.getElementById('sm'); m.textContent=t; m.className='smsg v '+(c||''); }
+function bar(p){ document.getElementById('bw').className='bwrap v'; document.getElementById('bf').style.width=Math.min(100,p)+'%'; }
+
+// ─── LER PDF (extrai texto; retorna '' se imagem) ─────────────────────────────
+async function lerPDF(buf){
+  try{
+    var lib=window.pdfjsLib; if(!lib) return '';
+    var pdf=await lib.getDocument({data:buf}).promise;
+    var txt='';
+    for(var i=1;i<=Math.min(pdf.numPages,5);i++){
+      try{
+        var pg=await pdf.getPage(i);
+        var tc=await pg.getTextContent();
+        txt+=tc.items.map(function(x){return x.str;}).join(' ')+'\n';
+      }catch(e){}
+    }
+    return txt.trim();
+  }catch(e){ return ''; }
 }
 
-function setBar(pct) {
-    document.getElementById('barWrap').className = 'bar-wrap show';
-    document.getElementById('bar').style.width = Math.min(100, pct) + '%';
+// ─── EXTRAÇÃO DE CÓDIGO DE BARRAS ────────────────────────────────────────────
+function limparCB(s){ return s?s.replace(/[^\d]/g,''):''; }
+
+function extrairCB(txt){
+  if(!txt) return '';
+  // 1) Sequência contínua 44-48 dígitos
+  var m=txt.match(/\d{44,48}/);
+  if(m) return limparCB(m[0]);
+  // 2) "Codigo de Barras: ..." (comprovante SISBB / BB)
+  var m2=txt.match(/[Cc][o\u00f3]digo\s*[Dd]e\s*[Bb]arras[:\s]+([\d\s\|\.\-]+)/);
+  if(m2){ var d=limparCB(m2[1]); if(d.length>=44) return d; }
+  // 3) Linha do boleto TJSP com blocos: "| 001-9 | 00190.00009 ..."
+  var m3=txt.match(/\|\s*\d{3}-?\d\s*\|[\d\s\.\|]+/);
+  if(m3){ var d=limparCB(m3[0]); if(d.length>=44) return d; }
+  // 4) Qualquer linha com 40+ dígitos/separadores
+  var linhas=txt.split('\n');
+  for(var i=0;i<linhas.length;i++){
+    var l=linhas[i].trim();
+    if(/^[\d\s\.\|\-]{40,}$/.test(l)){ var d=limparCB(l); if(d.length>=44) return d; }
+  }
+  return '';
 }
 
-// ── LER PDF ──────────────────────────────────────────────────────────────────
-async function lerPDF(buf) {
-    try {
-        var lib = window.pdfjsLib;
-        if (!lib) return '';
-        var pdf = await lib.getDocument({ data: buf }).promise;
-        var txt = '';
-        for (var i = 1; i <= Math.min(pdf.numPages, 4); i++) {
-            try {
-                var pg = await pdf.getPage(i);
-                var tc = await pg.getTextContent();
-                txt += tc.items.map(function(x){ return x.str; }).join(' ') + '\n';
-            } catch(e) {}
-        }
-        return txt.trim();
-    } catch(e) { return ''; }
+// ─── EXTRAÇÃO DE NOSSO NÚMERO ────────────────────────────────────────────────
+function extrairNossoNum(txt){
+  if(!txt) return '';
+  var pats=[
+    /[Nn]osso\s+[Nn][uú]mero\s*[\n\r:\s]+([\d]+)/,
+    /[Nn]r\.\s*[Dd]ocumento\s*[\n\r:\s]+([\d]+)/,
+    /[Nn][uú]mero\s+[Dd]o\s+[Dd]ocumento\s*[\n\r:\s]+([\d]+)/,
+    /NOSSO\s+NUMERO\s*[\n\r:\s]+([\d]+)/,
+    /DOCUMENTO\s*[\n\r:\s]+([\d]+)/
+  ];
+  for(var i=0;i<pats.length;i++){
+    var m=txt.match(pats[i]);
+    if(m) return m[1];
+  }
+  return '';
 }
 
-// ── CÓDIGO DE BARRAS ─────────────────────────────────────────────────────────
-function normCB(s) {
-    // Remove tudo que não for dígito
-    return s ? s.replace(/[^\d]/g, '') : '';
+// ─── EXTRAÇÃO DE VALOR ───────────────────────────────────────────────────────
+function normVal(v){
+  if(!v) return null;
+  v=String(v).trim().replace(/,\s+/g,',').replace(/\.\s+/g,'.');
+  if(v.indexOf(',')!==-1){
+    v=v.replace(/\./g,'').replace(',','.');
+  } else if(v.indexOf('.')!==-1){
+    var parts=v.split('.'), last=parts[parts.length-1];
+    v = last.length===2 ? parts.slice(0,-1).join('')+'.'+last : v.replace(/\./g,'');
+  }
+  var n=parseFloat(v);
+  return (!isNaN(n)&&n>0)?n.toFixed(2):null;
 }
 
-function extrairCB(txt) {
-    if (!txt) return '';
-    // 1) Sequência contínua de 44-48 dígitos (comprovante BB)
-    var m = txt.match(/\d{44,48}/);
-    if (m) return normCB(m[0]);
+function extrairValorTexto(txt){
+  if(!txt) return null;
+  txt=txt.replace(/,\s+/g,',').replace(/\.\s+/g,'.');
+  var pats=[
+    /[Vv]alor\s+[Tt]otal\s*[:\s]+([\d.,]+)/,
+    /\(=\)\s*[Vv]alor\s*[Dd]o\s*[Dd]ocumento[^\d]*([\d.,]+)/,
+    /[Vv]alor\s*[:\n\r\s]+([\d.,]+)/,
+    /[Tt]otal\s*[:\n\r\s]+([\d.,]+)/,
+    /R\$\s*([\d.,]+)/
+  ];
+  for(var i=0;i<pats.length;i++){
+    var m=txt.match(pats[i]);
+    if(m){ var v=normVal(m[1]); if(v) return v; }
+  }
+  return null;
+}
 
-    // 2) "Codigo de Barras: XXXXX" (comprovante SISBB)
-    var m2 = txt.match(/[Cc][oó]digo\s*[Dd]e\s*[Bb]arras[:\s]+([\d\s\|\.\-]+)/);
-    if (m2) {
-        var d = normCB(m2[1]);
-        if (d.length >= 44) return d;
+function extrairValorNome(nome){
+  // Segmento numérico imediatamente antes de .pdf — ex: "NOME_192,10.pdf"
+  var m=nome.match(/([\d.,]+)\s*\.[Pp][Dd][Ff]$/);
+  return m?normVal(m[1]):null;
+}
+
+// ─── EXTRAÇÃO DE DARE / GRERJ ────────────────────────────────────────────────
+function extrairDARE(txt){
+  if(!txt) return '';
+  var m=txt.match(/DARE[:\s-]+([\d]+)/i)||txt.match(/N[uú]mero\s*da\s*[Gg]uia[:\s]+([\d]+)/i)||
+         txt.match(/NOME\s+DA\s+COBRANCA[:\s]+([\d]+)/i)||
+         txt.match(/Pagamento referente ao DARE[^0-9]*([\d]+)/i);
+  return m?m[1].replace(/^0+/,''):'';
+}
+
+// ─── MATCHING (prioridade: CB > Nosso Num > DARE > Valor único) ──────────────
+function match(info1, info2){
+  var cb1=info1.cb, cb2=info2.cb;
+
+  // 1) Código de barras exato
+  if(cb1&&cb2&&cb1.length>=44&&cb2.length>=44){
+    if(cb1===cb2) return {tipo:'CODIGO_BARRAS',score:100};
+    // Contenção (um está dentro do outro — diferença de formatação boleto/comprovante)
+    if(cb1.length>30&&cb2.length>30){
+      if(cb1.indexOf(cb2.substring(4))>=0||cb2.indexOf(cb1.substring(4))>=0)
+        return {tipo:'CODIGO_BARRAS_PARCIAL',score:95};
+    }
+  }
+
+  // 2) Nosso Número do boleto dentro do CB do comprovante (padrão BB)
+  var nn1=info1.nossoNum;
+  if(nn1&&cb2&&cb2.length>=44){
+    var variantes=[nn1, nn1.replace(/^0+/,''), nn1.replace(/^10/,'').replace(/^0+/,'')];
+    for(var i=0;i<variantes.length;i++){
+      if(variantes[i].length>=6&&cb2.indexOf(variantes[i])>=0)
+        return {tipo:'NOSSO_NUMERO',score:90};
+    }
+  }
+
+  // 3) DARE / GRERJ
+  var d1=info1.dare, d2=info2.dare;
+  if(d1&&d2&&d1===d2) return {tipo:'DARE_GRERJ',score:88};
+
+  // 4) Valor — APENAS se for único entre os candidatos disponíveis (tratado externamente)
+  var v1=info1.valTxt||info1.valNome, v2=info2.valTxt||info2.valNome;
+  if(v1&&v2&&v1===v2) return {tipo:'VALOR',score:70,val:v1};
+
+  return null;
+}
+
+// ─── MERGE PDF ───────────────────────────────────────────────────────────────
+async function mergePDFs(b1,b2){
+  var d1=await PDFLib.PDFDocument.load(b1);
+  var d2=await PDFLib.PDFDocument.load(b2);
+  var m=await PDFLib.PDFDocument.create();
+  var p1=await m.copyPages(d1,d1.getPageIndices()); p1.forEach(function(p){m.addPage(p);});
+  var p2=await m.copyPages(d2,d2.getPageIndices()); p2.forEach(function(p){m.addPage(p);});
+  return await m.save();
+}
+
+// ─── PROCESSAR ───────────────────────────────────────────────────────────────
+async function run(){
+  if(!F1||!F2){alert('Selecione os 2 arquivos');return;}
+  msg('Processando...','pr'); bar(2);
+  document.getElementById('dls').className='dls';
+  document.getElementById('lg').className='log';
+  document.getElementById('lg').innerHTML='';
+
+  try{
+    log('Abrindo ZIPs...','if');
+    var zip1=await JSZip.loadAsync(F1);
+    var zip2=await JSZip.loadAsync(F2);
+
+    // Coleta TODOS os PDFs (case insensitive)
+    var nomes1=Object.keys(zip1.files).filter(function(n){return n.match(/\.pdf$/i)&&!zip1.files[n].dir;});
+    var nomes2=Object.keys(zip2.files).filter(function(n){return n.match(/\.pdf$/i)&&!zip2.files[n].dir;});
+    log('ZIP1: '+nomes1.length+' PDFs | ZIP2: '+nomes2.length+' PDFs','ok');
+    bar(4);
+
+    var infos1={}, infos2={}, imagens=[];
+    var total=nomes1.length+nomes2.length, cnt=0;
+
+    // ── Extrair info ZIP1 (guias/boletos)
+    for(var i=0;i<nomes1.length;i++){
+      var n=nomes1[i];
+      var bytes=await zip1.files[n].async('uint8array');
+      var txt=await lerPDF(bytes.slice(0).buffer);
+      var base=n.split('/').pop();
+      if(!txt){
+        log('NAO_LEGIVEL [GUIA]: '+base,'wn');
+        imagens.push({nome:base,bytes:bytes,tipo:'GUIA'});
+      } else {
+        infos1[n]={bytes:bytes,txt:txt,cb:extrairCB(txt),nossoNum:extrairNossoNum(txt),
+                   dare:extrairDARE(txt),valTxt:extrairValorTexto(txt),valNome:extrairValorNome(base)};
+      }
+      bar(4+Math.round((++cnt/total)*36));
     }
 
-    // 3) Blocos separados por espaço/pipe/ponto (linha do boleto TJSP)
-    // ex: "| 001-9 | 00190.00009  03738.976103  01306.524172  3 14290000019210"
-    var m3 = txt.match(/\|\s*\d{3}-\d\s*\|[\d\s\.\|]+/);
-    if (m3) {
-        var d = normCB(m3[0]);
-        if (d.length >= 44) return d;
+    // ── Extrair info ZIP2 (comprovantes)
+    for(var i=0;i<nomes2.length;i++){
+      var n=nomes2[i];
+      var bytes=await zip2.files[n].async('uint8array');
+      var txt=await lerPDF(bytes.slice(0).buffer);
+      var base=n.split('/').pop();
+      if(!txt){
+        log('NAO_LEGIVEL [COMPROV]: '+base,'wn');
+        imagens.push({nome:base,bytes:bytes,tipo:'COMPROVANTE'});
+      } else {
+        infos2[n]={bytes:bytes,txt:txt,cb:extrairCB(txt),nossoNum:extrairNossoNum(txt),
+                   dare:extrairDARE(txt),valTxt:extrairValorTexto(txt),valNome:extrairValorNome(base)};
+      }
+      bar(4+Math.round((++cnt/total)*36));
     }
 
-    // 4) Linha só com dígitos, pontos e espaços com comprimento suficiente
-    var linhas = txt.split('\n');
-    for (var i = 0; i < linhas.length; i++) {
-        var l = linhas[i].trim();
-        if (/^[\d\s\.\|]{40,}$/.test(l)) {
-            var d = normCB(l);
-            if (d.length >= 44) return d;
+    log('Buscando correspondencias...','if');
+
+    var pares=[], usados2={};
+
+    // ── Passo 1: matches de ALTA confiança (CB, NossoNum, DARE) — score >= 88
+    for(var n1 in infos1){
+      var i1=infos1[n1];
+      var melhor=null, melhorN2=null;
+      for(var n2 in infos2){
+        if(usados2[n2]) continue;
+        var r=match(i1,infos2[n2]);
+        if(r&&r.score>=88){
+          if(!melhor||r.score>melhor.score){ melhor=r; melhorN2=n2; }
+          if(r.score===100) break;
         }
-    }
-    return '';
-}
-
-// ── NOSSO NÚMERO ─────────────────────────────────────────────────────────────
-function extrairNossoNum(txt) {
-    if (!txt) return '';
-    // "Nosso Numero" ou "Nosso Número" ou "Nr. Documento" no boleto
-    var pats = [
-        /[Nn]osso\s+[Nn][uú]mero\s*[\n\r\s]*([\d]+)/,
-        /[Nn]r\.\s*[Dd]ocumento\s*[\n\r\s]*([\d]+)/,
-        /NOSSO\s+NUMERO\s*[\n\r\s]*([\d]+)/
-    ];
-    for (var i = 0; i < pats.length; i++) {
-        var m = txt.match(pats[i]);
-        if (m) return m[1].replace(/^0+/, ''); // Remove zeros à esquerda
-    }
-    return '';
-}
-
-// ── VALOR ────────────────────────────────────────────────────────────────────
-function normVal(v) {
-    if (!v) return null;
-    // Limpa espaços internos: "2.166, 04" -> "2.166,04"
-    v = String(v).trim().replace(/,\s+/g, ',').replace(/\.\s+/g, '.');
-    if (v.indexOf(',') !== -1) {
-        // pt-BR: vírgula = decimal
-        // Se 1 dígito após vírgula (ex: "192,1") → pad para "192.10"
-        v = v.replace(/\./g, '').replace(',', '.');
-    } else if (v.indexOf('.') !== -1) {
-        var parts = v.split('.');
-        var last = parts[parts.length - 1];
-        if (last.length === 2) {
-            // Ponto decimal (ex: "192.10", "149.70")
-            v = parts.slice(0, -1).join('') + '.' + last;
-        } else {
-            // Ponto de milhar sem decimal — remove
-            v = v.replace(/\./g, '');
-        }
-    }
-    try {
-        var n = parseFloat(v);
-        if (isNaN(n) || n <= 0) return null;
-        return n.toFixed(2);
-    } catch(e) { return null; }
-}
-
-function extrairValorTexto(txt) {
-    if (!txt) return null;
-    // Normaliza espaços antes de tudo
-    txt = txt.replace(/,\s+/g, ',').replace(/\.\s+/g, '.');
-    var pats = [
-        /[Vv]alor\s+[Tt]otal\s*[:\s]+([\d.,]+)/,
-        /\(=\)\s*[Vv]alor\s*[Dd]o\s*[Dd]ocumento[^\d]*([\d.,]+)/,
-        /[Vv]alor\s*[:\n\r\s]+([\d.,]+)/,
-        /[Tt]otal\s*[:\n\r\s]+([\d.,]+)/,
-        /R\$\s*([\d.,]+)/
-    ];
-    for (var i = 0; i < pats.length; i++) {
-        var m = txt.match(pats[i]);
-        if (m) {
-            var v = normVal(m[1]);
-            if (v) return v;
-        }
-    }
-    return null;
-}
-
-function extrairValorNome(nome) {
-    // Pega o segmento numérico imediatamente antes de .pdf
-    // ex: "NOME_192,10.pdf" ou "NOME_149,7.PDF" ou "NOME_192.10.pdf"
-    var m = nome.match(/([\d.,]+)\s*\.[Pp][Dd][Ff]$/);
-    if (!m) return null;
-    return normVal(m[1]);
-}
-
-// ── MATCHING ─────────────────────────────────────────────────────────────────
-function encontrarMatch(n1, n2, info1, info2) {
-    var cb1 = info1.cb, cb2 = info2.cb;
-    var nn1 = info1.nossoNum;
-
-    // 1) Código de barras exato (mais confiável)
-    if (cb1 && cb2 && cb1.length >= 44 && cb2.length >= 44) {
-        if (cb1 === cb2) return { tipo: 'CODIGO_BARRAS_EXATO', score: 100 };
-        // Contenção (diferença de formatação)
-        if (cb1.length > 20 && cb2.length > 20) {
-            if (cb1.indexOf(cb2.substring(10)) >= 0 || cb2.indexOf(cb1.substring(10)) >= 0)
-                return { tipo: 'CODIGO_BARRAS_PARCIAL', score: 95 };
-        }
+      }
+      if(melhor&&melhorN2){
+        pares.push({n1:n1,n2:melhorN2,i1:infos1[n1],i2:infos2[melhorN2],m:melhor});
+        usados2[melhorN2]=true;
+        delete infos1[n1];
+        log('['+melhor.tipo+'] '+n1.split('/').pop().substring(0,28)+' + '+melhorN2.split('/').pop().substring(0,24),'ok');
+      }
     }
 
-    // 2) Nosso Número do boleto dentro do código de barras do comprovante
-    // O número aparece no meio do CB sem o prefixo '10'
-    if (nn1 && cb2 && cb2.length >= 44) {
-        var nn_limpo = nn1.replace(/^10/, '').replace(/^0+/, ''); // remove '10' e zeros
-        if (nn_limpo.length >= 6 && cb2.indexOf(nn_limpo) >= 0)
-            return { tipo: 'NOSSO_NUMERO', score: 90 };
-        // Também tenta com o número completo sem zeros
-        var nn_full = nn1.replace(/^0+/, '');
-        if (nn_full.length >= 6 && cb2.indexOf(nn_full) >= 0)
-            return { tipo: 'NOSSO_NUMERO', score: 90 };
+    // ── Passo 2: restantes — tentar por VALOR, mas só se for único (sem ambiguidade)
+    // Contar quantos comprovantes disponíveis têm cada valor
+    var contVal={};
+    for(var n2 in infos2){
+      if(usados2[n2]) continue;
+      var v=infos2[n2].valTxt||infos2[n2].valNome;
+      if(v) contVal[v]=(contVal[v]||0)+1;
     }
 
-    // 3) Valor: prioriza texto do PDF, fallback para nome do arquivo
-    var v1 = info1.valTxt || info1.valNome;
-    var v2 = info2.valTxt || info2.valNome;
-    if (v1 && v2 && v1 === v2) return { tipo: 'VALOR', score: 70 };
+    for(var n1 in infos1){
+      var i1=infos1[n1];
+      var v1=i1.valTxt||i1.valNome;
+      if(!v1){ log('Sem valor: '+n1.split('/').pop(),'wn'); continue; }
 
-    return null;
-}
-
-// ── MERGE PDF ────────────────────────────────────────────────────────────────
-async function mergePDFs(bytes1, bytes2) {
-    var doc1 = await PDFLib.PDFDocument.load(bytes1);
-    var doc2 = await PDFLib.PDFDocument.load(bytes2);
-    var merged = await PDFLib.PDFDocument.create();
-    var pg1 = await merged.copyPages(doc1, doc1.getPageIndices());
-    pg1.forEach(function(p) { merged.addPage(p); });
-    var pg2 = await merged.copyPages(doc2, doc2.getPageIndices());
-    pg2.forEach(function(p) { merged.addPage(p); });
-    return await merged.save();
-}
-
-// ── PROCESSAR ────────────────────────────────────────────────────────────────
-async function processar() {
-    if (!f1 || !f2) { alert('Selecione os 2 arquivos'); return; }
-
-    setMsg('Processando...', 'proc');
-    setBar(2);
-    document.getElementById('dls').className = 'downloads';
-    document.getElementById('log').className = 'log';
-    document.getElementById('log').innerHTML = '';
-
-    try {
-        addLog('Abrindo ZIPs...', 'l-info');
-        var zip1 = await JSZip.loadAsync(f1);
-        var zip2 = await JSZip.loadAsync(f2);
-
-        var nomes1 = Object.keys(zip1.files).filter(function(n){ return n.toLowerCase().endsWith('.pdf'); });
-        var nomes2 = Object.keys(zip2.files).filter(function(n){ return n.toLowerCase().endsWith('.pdf'); });
-        addLog('ZIP1: ' + nomes1.length + ' PDFs | ZIP2: ' + nomes2.length + ' PDFs', 'l-ok');
-        setBar(5);
-
-        var infos1 = {}, infos2 = {};
-        var imagens = []; // PDFs sem texto (scans)
-        var total = nomes1.length + nomes2.length, cnt = 0;
-
-        // Extrair informações de cada PDF
-        for (var i = 0; i < nomes1.length; i++) {
-            var n = nomes1[i];
-            var bytes = await zip1.files[n].async('uint8array');
-            var txt = await lerPDF(bytes.slice(0).buffer);
-            var nome_base = n.split('/').pop();
-            if (!txt) {
-                addLog('Imagem (sem texto): ' + nome_base, 'l-warn');
-                imagens.push({ nome: nome_base, bytes: bytes, tipo: 'GUIA' });
-            } else {
-                infos1[n] = {
-                    bytes: bytes,
-                    txt: txt,
-                    cb: extrairCB(txt),
-                    nossoNum: extrairNossoNum(txt),
-                    valTxt: extrairValorTexto(txt),
-                    valNome: extrairValorNome(nome_base)
-                };
-            }
-            setBar(5 + Math.round((++cnt / total) * 38));
+      if(contVal[v1]>1){
+        log('AMBIGUO R$'+v1+' ('+contVal[v1]+'x) — nao pareado: '+n1.split('/').pop().substring(0,28),'wn');
+        continue;
+      }
+      if(contVal[v1]===1){
+        for(var n2 in infos2){
+          if(usados2[n2]) continue;
+          var r=match(i1,infos2[n2]);
+          if(r&&r.tipo==='VALOR'){
+            pares.push({n1:n1,n2:n2,i1:infos1[n1],i2:infos2[n2],m:r});
+            usados2[n2]=true;
+            delete infos1[n1];
+            log('[VALOR R$'+v1+'] '+n1.split('/').pop().substring(0,28)+' + '+n2.split('/').pop().substring(0,24),'ok');
+            contVal[v1]=0;
+            break;
+          }
         }
-
-        for (var i = 0; i < nomes2.length; i++) {
-            var n = nomes2[i];
-            var bytes = await zip2.files[n].async('uint8array');
-            var txt = await lerPDF(bytes.slice(0).buffer);
-            var nome_base = n.split('/').pop();
-            if (!txt) {
-                addLog('Imagem (sem texto): ' + nome_base, 'l-warn');
-                imagens.push({ nome: nome_base, bytes: bytes, tipo: 'COMPROVANTE' });
-            } else {
-                infos2[n] = {
-                    bytes: bytes,
-                    txt: txt,
-                    cb: extrairCB(txt),
-                    nossoNum: extrairNossoNum(txt),
-                    valTxt: extrairValorTexto(txt),
-                    valNome: extrairValorNome(nome_base)
-                };
-            }
-            setBar(5 + Math.round((++cnt / total) * 38));
-        }
-
-        addLog('Procurando correspondencias...', 'l-info');
-
-        // Para evitar ambiguidade: indexar comprovantes por código de barras
-        // Quando houver match por VALOR, verificar se não é ambíguo
-        var pares = [], usados2 = {};
-        var pendentes1 = [], pendentes2 = [];
-
-        // Primeiro passo: matches por CB e Nosso Numero (alta confiança)
-        for (var n1 in infos1) {
-            var info1 = infos1[n1];
-            var melhor = null, melhorN2 = null;
-
-            for (var n2 in infos2) {
-                if (usados2[n2]) continue;
-                var info2 = infos2[n2];
-                var result = encontrarMatch(n1, n2, info1, info2);
-                if (result && result.score >= 90) { // Apenas alta confiança no 1o passo
-                    if (!melhor || result.score > melhor.score) {
-                        melhor = result;
-                        melhorN2 = n2;
-                    }
-                    if (result.score === 100) break; // match perfeito, para aqui
-                }
-            }
-
-            if (melhor && melhorN2) {
-                pares.push({ n1:n1, n2:melhorN2, info1:info1, info2:infos2[melhorN2], match:melhor });
-                usados2[melhorN2] = true;
-                addLog('[' + melhor.tipo + '] ' + n1.split('/').pop().substring(0,30) + ' + ' + melhorN2.split('/').pop().substring(0,25), 'l-ok');
-                delete infos1[n1];
-            }
-        }
-
-        // Segundo passo: restantes tentam match por VALOR
-        // Verificar ambiguidade: se mais de 1 comprovante tem o mesmo valor, não parear
-        var valoresComprov = {};
-        for (var n2 in infos2) {
-            if (usados2[n2]) continue;
-            var info2 = infos2[n2];
-            var v = info2.valTxt || info2.valNome;
-            if (v) {
-                valoresComprov[v] = (valoresComprov[v] || 0) + 1;
-            }
-        }
-
-        for (var n1 in infos1) {
-            var info1 = infos1[n1];
-            var v1 = info1.valTxt || info1.valNome;
-            var melhor = null, melhorN2 = null;
-
-            if (v1 && valoresComprov[v1] === 1) { // Só pareia se valor único
-                for (var n2 in infos2) {
-                    if (usados2[n2]) continue;
-                    var info2 = infos2[n2];
-                    var result = encontrarMatch(n1, n2, info1, info2);
-                    if (result && result.tipo === 'VALOR') {
-                        melhor = result;
-                        melhorN2 = n2;
-                        break;
-                    }
-                }
-            } else if (v1 && valoresComprov[v1] > 1) {
-                addLog('Valor ambiguo R$' + v1 + ' (' + valoresComprov[v1] + 'x): ' + n1.split('/').pop().substring(0,25), 'l-warn');
-            }
-
-            if (melhor && melhorN2) {
-                pares.push({ n1:n1, n2:melhorN2, info1:info1, info2:infos2[melhorN2], match:melhor });
-                usados2[melhorN2] = true;
-                addLog('[VALOR R$' + v1 + '] ' + n1.split('/').pop().substring(0,30) + ' + ' + melhorN2.split('/').pop().substring(0,25), 'l-ok');
-            } else if (!melhor) {
-                pendentes1.push({ nome: n1.split('/').pop(), bytes: info1.bytes });
-            }
-        }
-
-        // Comprovantes não usados = pendentes
-        for (var n2 in infos2) {
-            if (!usados2[n2]) {
-                pendentes2.push({ nome: n2.split('/').pop(), bytes: infos2[n2].bytes });
-            }
-        }
-
-        addLog('Gerando PDFs (' + pares.length + ' pares)...', 'l-info');
-        var finalZip = new JSZip();
-        var pendZip = new JSZip();
-        var imgZip = new JSZip();
-
-        // PDFs pareados
-        for (var i = 0; i < pares.length; i++) {
-            var p = pares[i];
-            try {
-                var bytes = await mergePDFs(p.info1.bytes, p.info2.bytes);
-                var label = String(i+1).padStart(3,'0') + '_' +
-                    p.n1.split('/').pop().replace(/\.pdf$/i,'').substring(0,30).replace(/[^a-zA-Z0-9_\-]/g,'_') +
-                    '.pdf';
-                finalZip.file(label, bytes);
-            } catch(e) {
-                addLog('Erro no par ' + (i+1) + ': ' + e.message, 'l-err');
-            }
-            setBar(44 + Math.round(((i+1) / Math.max(pares.length,1)) * 45));
-        }
-
-        // Pendentes
-        pendentes1.forEach(function(p) { pendZip.file('GUIA_' + p.nome, p.bytes); });
-        pendentes2.forEach(function(p) { pendZip.file('COMPROV_' + p.nome, p.bytes); });
-
-        // Imagens (PDFs sem texto)
-        imagens.forEach(function(p) { imgZip.file(p.tipo + '_IMAGEM_' + p.nome, p.bytes); });
-
-        // Relatório
-        var rel = 'CONCILIACAO\n' + new Date().toLocaleString('pt-BR') + '\n';
-        rel += '========================================\n';
-        rel += 'Pares encontrados: ' + pares.length + '\n';
-        rel += 'Guias pendentes: ' + pendentes1.length + '\n';
-        rel += 'Comprovantes pendentes: ' + pendentes2.length + '\n';
-        rel += 'PDFs-imagem (sem texto): ' + imagens.length + '\n';
-        rel += '========================================\n\n';
-        rel += 'PARES:\n';
-        pares.forEach(function(p, i) {
-            rel += (i+1) + '. [' + p.match.tipo + ']\n';
-            rel += '   GUIA: ' + p.n1.split('/').pop() + '\n';
-            rel += '   COMP: ' + p.n2.split('/').pop() + '\n\n';
-        });
-        rel += '\nGUIAS SEM COMPROVANTE:\n';
-        pendentes1.forEach(function(p,i){ rel += (i+1) + '. ' + p.nome + '\n'; });
-        rel += '\nCOMPROVANTES SEM GUIA:\n';
-        pendentes2.forEach(function(p,i){ rel += (i+1) + '. ' + p.nome + '\n'; });
-        rel += '\nPDFs-IMAGEM (nao processados):\n';
-        imagens.forEach(function(p,i){ rel += (i+1) + '. [' + p.tipo + '] ' + p.nome + '\n'; });
-
-        finalZip.file('RELATORIO.txt', rel);
-
-        var bF = await finalZip.generateAsync({ type: 'blob' });
-        var bP = await pendZip.generateAsync({ type: 'blob' });
-        var bI = await imgZip.generateAsync({ type: 'blob' });
-
-        var html = '<a class="dl-btn" href="' + URL.createObjectURL(bF) + '" download="PAREADOS.zip">Baixar PDFs Pareados (' + pares.length + ' pares)</a>';
-        if (pendentes1.length + pendentes2.length > 0)
-            html += '<a class="dl-btn" href="' + URL.createObjectURL(bP) + '" download="PENDENTES.zip">Baixar Pendentes (' + (pendentes1.length+pendentes2.length) + ')</a>';
-        if (imagens.length > 0)
-            html += '<a class="dl-btn dl-img" href="' + URL.createObjectURL(bI) + '" download="IMAGENS.zip">Baixar PDFs-Imagem (' + imagens.length + ')</a>';
-
-        document.getElementById('dls').innerHTML = html;
-        document.getElementById('dls').className = 'downloads show';
-        setBar(100);
-        setMsg('Pronto! ' + pares.length + ' pares | ' + (pendentes1.length+pendentes2.length) + ' pendentes | ' + imagens.length + ' imagens', 'ok');
-        addLog('Concluido!', 'l-ok');
-
-    } catch(e) {
-        setMsg('Erro: ' + e.message, 'err');
-        addLog('ERRO: ' + e.message, 'l-err');
-        console.error(e);
+      }
     }
+
+    log('Gerando PDFs ('+pares.length+' pares)...','if');
+    var juntosZip=new JSZip(), pendZip=new JSZip(), imgZip=new JSZip();
+    var pendGuias=[], pendComprov=[];
+
+    // PDFs unidos
+    for(var i=0;i<pares.length;i++){
+      var p=pares[i];
+      try{
+        var bytes=await mergePDFs(p.i1.bytes,p.i2.bytes);
+        var nome=String(i+1).padStart(3,'0')+'_'+
+          p.n1.split('/').pop().replace(/\.[Pp][Dd][Ff]$/,'').substring(0,35).replace(/[^\w\-]/g,'_')+
+          '.pdf';
+        juntosZip.file(nome,bytes);
+      }catch(e){ log('Erro par '+(i+1)+': '+e.message,'er'); }
+      bar(40+Math.round(((i+1)/Math.max(pares.length,1))*48));
+    }
+
+    // Pendentes
+    for(var n1 in infos1){
+      pendGuias.push(n1.split('/').pop());
+      pendZip.file('GUIA_'+n1.split('/').pop(), infos1[n1].bytes);
+    }
+    for(var n2 in infos2){
+      if(!usados2[n2]){
+        pendComprov.push(n2.split('/').pop());
+        pendZip.file('COMPROV_'+n2.split('/').pop(), infos2[n2].bytes);
+      }
+    }
+
+    // Imagens
+    imagens.forEach(function(p){ imgZip.file(p.tipo+'_'+p.nome, p.bytes); });
+
+    // ── Relatório completo
+    var totalGuias=nomes1.length, totalComprov=nomes2.length;
+    var totalImagens=imagens.length, totalPend=pendGuias.length+pendComprov.length;
+    var rel='RELATORIO DE CONCILIACAO\n';
+    rel+=new Date().toLocaleString('pt-BR')+'\n';
+    rel+='='.repeat(60)+'\n\n';
+    rel+='CONTAGEM TOTAL\n';
+    rel+='Total guias/boletos:    '+totalGuias+'\n';
+    rel+='Total comprovantes:     '+totalComprov+'\n';
+    rel+='Total conciliados:      '+pares.length+'\n';
+    rel+='Total pendentes:        '+totalPend+'\n';
+    rel+='Total nao lidos:        '+totalImagens+'\n\n';
+    rel+='='.repeat(60)+'\n\nPARES ENCONTRADOS:\n\n';
+    pares.forEach(function(p,i){
+      rel+=(i+1)+'. ['+p.m.tipo+']\n';
+      rel+='   GUIA: '+p.n1.split('/').pop()+'\n';
+      rel+='   COMP: '+p.n2.split('/').pop()+'\n\n';
+    });
+    rel+='\n'+'='.repeat(60)+'\nGUIAS SEM COMPROVANTE ('+pendGuias.length+'):\n';
+    pendGuias.forEach(function(n,i){ rel+=(i+1)+'. '+n+'\n'; });
+    rel+='\nCOMPROVANTES SEM GUIA ('+pendComprov.length+'):\n';
+    pendComprov.forEach(function(n,i){ rel+=(i+1)+'. '+n+'\n'; });
+    rel+='\n'+'='.repeat(60)+'\nPDFs IMAGEM / NAO LIDOS ('+totalImagens+'):\n';
+    imagens.forEach(function(p,i){ rel+=(i+1)+'. ['+p.tipo+'] '+p.nome+'\n'; });
+
+    juntosZip.file('RELATORIO_CONCILIACAO.txt',rel);
+
+    var bJ=await juntosZip.generateAsync({type:'blob'});
+    var bP=await pendZip.generateAsync({type:'blob'});
+    var bI=await imgZip.generateAsync({type:'blob'});
+
+    var html='';
+    html+='<a class="db g" href="'+URL.createObjectURL(bJ)+'" download="GUIAS_COMPROVANTES_JUNTOS.zip">Baixar PAREADOS ('+pares.length+' pares)</a>';
+    if(totalPend>0)
+      html+='<a class="db w" href="'+URL.createObjectURL(bP)+'" download="PENDENTES.zip">Baixar PENDENTES ('+totalPend+')</a>';
+    if(totalImagens>0)
+      html+='<a class="db r" href="'+URL.createObjectURL(bI)+'" download="IMAGEM_NAO_LIDO.zip">Baixar IMAGEM_NAO_LIDO ('+totalImagens+')</a>';
+
+    document.getElementById('dls').innerHTML=html;
+    document.getElementById('dls').className='dls v';
+    bar(100);
+    msg('Pronto! '+pares.length+' pareados | '+totalPend+' pendentes | '+totalImagens+' imagens','ok');
+    log('Concluido!','ok');
+
+  }catch(e){
+    msg('Erro: '+e.message,'er');
+    log('ERRO: '+e.message,'er');
+    console.error(e);
+  }
 }
 </script>
 </body>
