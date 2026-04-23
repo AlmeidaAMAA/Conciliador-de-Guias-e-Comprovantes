@@ -7,7 +7,7 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: Arial, sans-serif; background: #4a90d9; padding: 20px; min-height: 100vh; }
-        .box { max-width: 520px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.2); }
+        .box { max-width: 560px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.2); }
         h1 { color: #333; text-align: center; margin-bottom: 5px; font-size: 22px; }
         .sub { text-align: center; color: #888; font-size: 13px; margin-bottom: 25px; }
         .upload-area { border: 2px dashed #4a90d9; border-radius: 8px; padding: 20px 15px; margin: 12px 0; text-align: center; background: #f5f8ff; }
@@ -33,7 +33,9 @@
         .downloads.show { display: block; }
         .dl-btn { display: block; padding: 10px; margin: 6px 0; background: #27ae60; color: white; text-decoration: none; border-radius: 6px; text-align: center; font-weight: bold; font-size: 13px; }
         .dl-btn:hover { background: #219a52; }
-        .log { background: #2c3e50; color: #ecf0f1; padding: 10px; border-radius: 6px; margin-top: 12px; font-size: 11px; font-family: monospace; max-height: 200px; overflow-y: auto; display: none; line-height: 1.4; }
+        .dl-img { background: #f39c12; }
+        .dl-img:hover { background: #d68910; }
+        .log { background: #2c3e50; color: #ecf0f1; padding: 10px; border-radius: 6px; margin-top: 12px; font-size: 11px; font-family: monospace; max-height: 220px; overflow-y: auto; display: none; line-height: 1.5; }
         .log.show { display: block; }
         .l-ok { color: #2ecc71; }
         .l-err { color: #e74c3c; }
@@ -43,23 +45,22 @@
 </head>
 <body>
 <div class="box">
-    <h1>📋 Conciliador de Boletos</h1>
+    <h1>Conciliador de Boletos</h1>
     <p class="sub">Selecione os 2 arquivos ZIP para processar</p>
 
     <div class="upload-area">
-        <label>1º ZIP — Boletos / Guias</label>
+        <label>1 ZIP - Boletos / Guias</label>
         <input type="file" id="z1" accept=".zip,application/zip">
         <div class="file-ok" id="ok1"></div>
     </div>
-
     <div class="upload-area">
-        <label>2º ZIP — Comprovantes</label>
+        <label>2 ZIP - Comprovantes</label>
         <input type="file" id="z2" accept=".zip,application/zip">
         <div class="file-ok" id="ok2"></div>
     </div>
 
-    <button class="btn btn-go" id="btnGo" disabled onclick="processar()">&#9654; PROCESSAR</button>
-    <button class="btn btn-clear" onclick="limpar()">&#10005; LIMPAR</button>
+    <button class="btn btn-go" id="btnGo" disabled onclick="processar()">PROCESSAR</button>
+    <button class="btn btn-clear" onclick="limpar()">LIMPAR</button>
 
     <div class="bar-wrap" id="barWrap"><div class="bar" id="bar"></div></div>
     <div class="msg" id="msg"></div>
@@ -97,16 +98,12 @@ document.getElementById('z2').addEventListener('change', function() {
     }
 });
 
-function checkBtn() {
-    document.getElementById('btnGo').disabled = !(f1 && f2);
-}
+function checkBtn() { document.getElementById('btnGo').disabled = !(f1 && f2); }
 
 function limpar() {
     f1 = null; f2 = null;
-    document.getElementById('z1').value = '';
-    document.getElementById('z2').value = '';
-    document.getElementById('ok1').className = 'file-ok';
-    document.getElementById('ok2').className = 'file-ok';
+    ['z1','z2'].forEach(function(id){ document.getElementById(id).value = ''; });
+    ['ok1','ok2'].forEach(function(id){ document.getElementById(id).className = 'file-ok'; });
     document.getElementById('barWrap').className = 'bar-wrap';
     document.getElementById('bar').style.width = '0%';
     document.getElementById('msg').className = 'msg';
@@ -130,21 +127,22 @@ function addLog(txt, cls) {
 function setMsg(txt, cls) {
     var m = document.getElementById('msg');
     m.textContent = txt;
-    m.className = 'msg show ' + cls;
+    m.className = 'msg show ' + (cls || '');
 }
 
 function setBar(pct) {
     document.getElementById('barWrap').className = 'bar-wrap show';
-    document.getElementById('bar').style.width = pct + '%';
+    document.getElementById('bar').style.width = Math.min(100, pct) + '%';
 }
 
+// ── LER PDF ──────────────────────────────────────────────────────────────────
 async function lerPDF(buf) {
     try {
         var lib = window.pdfjsLib;
         if (!lib) return '';
         var pdf = await lib.getDocument({ data: buf }).promise;
         var txt = '';
-        for (var i = 1; i <= Math.min(pdf.numPages, 3); i++) {
+        for (var i = 1; i <= Math.min(pdf.numPages, 4); i++) {
             try {
                 var pg = await pdf.getPage(i);
                 var tc = await pg.getTextContent();
@@ -155,103 +153,153 @@ async function lerPDF(buf) {
     } catch(e) { return ''; }
 }
 
-// ─── CÓDIGO DE BARRAS ────────────────────────────────────────────────────────
-// Normaliza: remove tudo que não for dígito e valida tamanho mínimo
-function normBarcode(str) {
-    if (!str) return null;
-    var d = str.replace(/[^\d]/g, '');
-    return d.length >= 44 ? d : null;
+// ── CÓDIGO DE BARRAS ─────────────────────────────────────────────────────────
+function normCB(s) {
+    // Remove tudo que não for dígito
+    return s ? s.replace(/[^\d]/g, '') : '';
 }
 
-function extrairCodigoBarras(txt) {
-    // 1) Contínuo: 44-48 dígitos seguidos
+function extrairCB(txt) {
+    if (!txt) return '';
+    // 1) Sequência contínua de 44-48 dígitos (comprovante BB)
     var m = txt.match(/\d{44,48}/);
-    if (m) return normBarcode(m[0]);
+    if (m) return normCB(m[0]);
 
-    // 2) "Codigo de Barras: XXXXX" (comprovante BB)
-    var m2 = txt.match(/c[o\u00f3]digo\s*de\s*barras[:\s]+([\d\s\|\.\-]+)/i);
+    // 2) "Codigo de Barras: XXXXX" (comprovante SISBB)
+    var m2 = txt.match(/[Cc][oó]digo\s*[Dd]e\s*[Bb]arras[:\s]+([\d\s\|\.\-]+)/);
     if (m2) {
-        var d = normBarcode(m2[1]);
-        if (d) return d;
+        var d = normCB(m2[1]);
+        if (d.length >= 44) return d;
     }
 
-    // 3) Blocos separados por espaço/pipe/ponto no texto
-    // ex: "868500000018 | 921051174006 | 143419040080 | 880001428070"
-    // ex: "00190.00009 03738.976103 01086.395173 3 14010000136254"
-    var m3 = txt.match(/\d[\d\s\|\.\-]{40,}\d/);
+    // 3) Blocos separados por espaço/pipe/ponto (linha do boleto TJSP)
+    // ex: "| 001-9 | 00190.00009  03738.976103  01306.524172  3 14290000019210"
+    var m3 = txt.match(/\|\s*\d{3}-\d\s*\|[\d\s\.\|]+/);
     if (m3) {
-        var d = normBarcode(m3[0]);
-        if (d) return d;
+        var d = normCB(m3[0]);
+        if (d.length >= 44) return d;
     }
 
-    return null;
+    // 4) Linha só com dígitos, pontos e espaços com comprimento suficiente
+    var linhas = txt.split('\n');
+    for (var i = 0; i < linhas.length; i++) {
+        var l = linhas[i].trim();
+        if (/^[\d\s\.\|]{40,}$/.test(l)) {
+            var d = normCB(l);
+            if (d.length >= 44) return d;
+        }
+    }
+    return '';
 }
 
-// ─── VALOR ───────────────────────────────────────────────────────────────────
+// ── NOSSO NÚMERO ─────────────────────────────────────────────────────────────
+function extrairNossoNum(txt) {
+    if (!txt) return '';
+    // "Nosso Numero" ou "Nosso Número" ou "Nr. Documento" no boleto
+    var pats = [
+        /[Nn]osso\s+[Nn][uú]mero\s*[\n\r\s]*([\d]+)/,
+        /[Nn]r\.\s*[Dd]ocumento\s*[\n\r\s]*([\d]+)/,
+        /NOSSO\s+NUMERO\s*[\n\r\s]*([\d]+)/
+    ];
+    for (var i = 0; i < pats.length; i++) {
+        var m = txt.match(pats[i]);
+        if (m) return m[1].replace(/^0+/, ''); // Remove zeros à esquerda
+    }
+    return '';
+}
+
+// ── VALOR ────────────────────────────────────────────────────────────────────
 function normVal(v) {
     if (!v) return null;
-    // Remove espaços internos: "2.166, 04" → "2.166,04"
+    // Limpa espaços internos: "2.166, 04" -> "2.166,04"
     v = String(v).trim().replace(/,\s+/g, ',').replace(/\.\s+/g, '.');
     if (v.indexOf(',') !== -1) {
+        // pt-BR: vírgula = decimal
+        // Se 1 dígito após vírgula (ex: "192,1") → pad para "192.10"
         v = v.replace(/\./g, '').replace(',', '.');
     } else if (v.indexOf('.') !== -1) {
         var parts = v.split('.');
         var last = parts[parts.length - 1];
         if (last.length === 2) {
+            // Ponto decimal (ex: "192.10", "149.70")
             v = parts.slice(0, -1).join('') + '.' + last;
         } else {
+            // Ponto de milhar sem decimal — remove
             v = v.replace(/\./g, '');
         }
     }
-    var n = parseFloat(v);
-    return (!isNaN(n) && n > 0) ? n.toFixed(2) : null;
+    try {
+        var n = parseFloat(v);
+        if (isNaN(n) || n <= 0) return null;
+        return n.toFixed(2);
+    } catch(e) { return null; }
 }
 
-function extrairValor(str) {
-    // Normaliza espaços antes de tudo: "R2.166, 04" → "R2.166,04"
-    str = str.replace(/,\s+/g, ',').replace(/\.\s+/g, '.');
+function extrairValorTexto(txt) {
+    if (!txt) return null;
+    // Normaliza espaços antes de tudo
+    txt = txt.replace(/,\s+/g, ',').replace(/\.\s+/g, '.');
     var pats = [
-        /[\d][\d.,]*(?=\s*\.pdf)/i,             // antes do .pdf no nome
-        /valor\s+total[:\s]+([\d.,]+)/i,         // "Valor Total: 192,10" (comprovante BB)
-        /\(=\)\s*valor\s*do\s*documento[^\d]*([\d.,]+)/i, // "Valor do Documento 1.362,54" (boleto BB)
-        /r\$\s*([\d.,]+)/i,                      // R$ 192,10
-        /valor[:\s]+([\d.,]+)/i,                 // Valor: 192,10
-        /[\d.,]+\s*$/m                           // fim da linha
+        /[Vv]alor\s+[Tt]otal\s*[:\s]+([\d.,]+)/,
+        /\(=\)\s*[Vv]alor\s*[Dd]o\s*[Dd]ocumento[^\d]*([\d.,]+)/,
+        /[Vv]alor\s*[:\n\r\s]+([\d.,]+)/,
+        /[Tt]otal\s*[:\n\r\s]+([\d.,]+)/,
+        /R\$\s*([\d.,]+)/
     ];
     for (var i = 0; i < pats.length; i++) {
-        var m = str.match(pats[i]);
+        var m = txt.match(pats[i]);
         if (m) {
-            var raw = (m[1] || m[0]).replace(/\s/g, '');
-            var v = normVal(raw);
+            var v = normVal(m[1]);
             if (v) return v;
         }
     }
     return null;
 }
 
-// ─── MATCHING ────────────────────────────────────────────────────────────────
-function encontrarMatch(n1, n2, txt1, txt2) {
-    // PRIORIDADE 1: Código de barras (mais confiável)
-    var cb1 = extrairCodigoBarras(txt1);
-    var cb2 = extrairCodigoBarras(txt2);
+function extrairValorNome(nome) {
+    // Pega o segmento numérico imediatamente antes de .pdf
+    // ex: "NOME_192,10.pdf" ou "NOME_149,7.PDF" ou "NOME_192.10.pdf"
+    var m = nome.match(/([\d.,]+)\s*\.[Pp][Dd][Ff]$/);
+    if (!m) return null;
+    return normVal(m[1]);
+}
 
-    if (cb1 && cb2) {
-        // Igualdade exata
-        if (cb1 === cb2) return { tipo: 'CODIGO DE BARRAS', detalhe: cb1.substring(0,20) + '...' };
-        // Contenção: um está dentro do outro (diferença de formatação)
-        if (cb1.indexOf(cb2) >= 0 || cb2.indexOf(cb1) >= 0)
-            return { tipo: 'CODIGO DE BARRAS (parcial)', detalhe: cb1.substring(0,20) + '...' };
+// ── MATCHING ─────────────────────────────────────────────────────────────────
+function encontrarMatch(n1, n2, info1, info2) {
+    var cb1 = info1.cb, cb2 = info2.cb;
+    var nn1 = info1.nossoNum;
+
+    // 1) Código de barras exato (mais confiável)
+    if (cb1 && cb2 && cb1.length >= 44 && cb2.length >= 44) {
+        if (cb1 === cb2) return { tipo: 'CODIGO_BARRAS_EXATO', score: 100 };
+        // Contenção (diferença de formatação)
+        if (cb1.length > 20 && cb2.length > 20) {
+            if (cb1.indexOf(cb2.substring(10)) >= 0 || cb2.indexOf(cb1.substring(10)) >= 0)
+                return { tipo: 'CODIGO_BARRAS_PARCIAL', score: 95 };
+        }
     }
 
-    // PRIORIDADE 2: Valor monetário
-    var v1 = extrairValor(n1 + ' ' + txt1);
-    var v2 = extrairValor(n2 + ' ' + txt2);
-    if (v1 && v2 && v1 === v2) return { tipo: 'VALOR', detalhe: 'R$ ' + v1 };
+    // 2) Nosso Número do boleto dentro do código de barras do comprovante
+    // O número aparece no meio do CB sem o prefixo '10'
+    if (nn1 && cb2 && cb2.length >= 44) {
+        var nn_limpo = nn1.replace(/^10/, '').replace(/^0+/, ''); // remove '10' e zeros
+        if (nn_limpo.length >= 6 && cb2.indexOf(nn_limpo) >= 0)
+            return { tipo: 'NOSSO_NUMERO', score: 90 };
+        // Também tenta com o número completo sem zeros
+        var nn_full = nn1.replace(/^0+/, '');
+        if (nn_full.length >= 6 && cb2.indexOf(nn_full) >= 0)
+            return { tipo: 'NOSSO_NUMERO', score: 90 };
+    }
+
+    // 3) Valor: prioriza texto do PDF, fallback para nome do arquivo
+    var v1 = info1.valTxt || info1.valNome;
+    var v2 = info2.valTxt || info2.valNome;
+    if (v1 && v2 && v1 === v2) return { tipo: 'VALOR', score: 70 };
 
     return null;
 }
 
-// ─── MERGE PDF ───────────────────────────────────────────────────────────────
+// ── MERGE PDF ────────────────────────────────────────────────────────────────
 async function mergePDFs(bytes1, bytes2) {
     var doc1 = await PDFLib.PDFDocument.load(bytes1);
     var doc2 = await PDFLib.PDFDocument.load(bytes2);
@@ -263,7 +311,7 @@ async function mergePDFs(bytes1, bytes2) {
     return await merged.save();
 }
 
-// ─── PROCESSAR ───────────────────────────────────────────────────────────────
+// ── PROCESSAR ────────────────────────────────────────────────────────────────
 async function processar() {
     if (!f1 || !f2) { alert('Selecione os 2 arquivos'); return; }
 
@@ -280,102 +328,201 @@ async function processar() {
 
         var nomes1 = Object.keys(zip1.files).filter(function(n){ return n.toLowerCase().endsWith('.pdf'); });
         var nomes2 = Object.keys(zip2.files).filter(function(n){ return n.toLowerCase().endsWith('.pdf'); });
-        addLog('ZIP1: ' + nomes1.length + ' PDFs  |  ZIP2: ' + nomes2.length + ' PDFs', 'l-ok');
+        addLog('ZIP1: ' + nomes1.length + ' PDFs | ZIP2: ' + nomes2.length + ' PDFs', 'l-ok');
         setBar(5);
 
-        var pdfs1 = {}, pdfs2 = {};
+        var infos1 = {}, infos2 = {};
+        var imagens = []; // PDFs sem texto (scans)
         var total = nomes1.length + nomes2.length, cnt = 0;
 
+        // Extrair informações de cada PDF
         for (var i = 0; i < nomes1.length; i++) {
             var n = nomes1[i];
             var bytes = await zip1.files[n].async('uint8array');
             var txt = await lerPDF(bytes.slice(0).buffer);
-            pdfs1[n] = { buf: bytes, txt: txt };
-            if (!txt) addLog('PDF-imagem (sem texto): ' + n.split('/').pop(), 'l-warn');
-            setBar(5 + Math.round((++cnt / total) * 40));
+            var nome_base = n.split('/').pop();
+            if (!txt) {
+                addLog('Imagem (sem texto): ' + nome_base, 'l-warn');
+                imagens.push({ nome: nome_base, bytes: bytes, tipo: 'GUIA' });
+            } else {
+                infos1[n] = {
+                    bytes: bytes,
+                    txt: txt,
+                    cb: extrairCB(txt),
+                    nossoNum: extrairNossoNum(txt),
+                    valTxt: extrairValorTexto(txt),
+                    valNome: extrairValorNome(nome_base)
+                };
+            }
+            setBar(5 + Math.round((++cnt / total) * 38));
         }
 
         for (var i = 0; i < nomes2.length; i++) {
             var n = nomes2[i];
             var bytes = await zip2.files[n].async('uint8array');
             var txt = await lerPDF(bytes.slice(0).buffer);
-            pdfs2[n] = { buf: bytes, txt: txt };
-            if (!txt) addLog('PDF-imagem (sem texto): ' + n.split('/').pop(), 'l-warn');
-            setBar(5 + Math.round((++cnt / total) * 40));
+            var nome_base = n.split('/').pop();
+            if (!txt) {
+                addLog('Imagem (sem texto): ' + nome_base, 'l-warn');
+                imagens.push({ nome: nome_base, bytes: bytes, tipo: 'COMPROVANTE' });
+            } else {
+                infos2[n] = {
+                    bytes: bytes,
+                    txt: txt,
+                    cb: extrairCB(txt),
+                    nossoNum: extrairNossoNum(txt),
+                    valTxt: extrairValorTexto(txt),
+                    valNome: extrairValorNome(nome_base)
+                };
+            }
+            setBar(5 + Math.round((++cnt / total) * 38));
         }
 
         addLog('Procurando correspondencias...', 'l-info');
+
+        // Para evitar ambiguidade: indexar comprovantes por código de barras
+        // Quando houver match por VALOR, verificar se não é ambíguo
         var pares = [], usados2 = {};
+        var pendentes1 = [], pendentes2 = [];
 
-        for (var n1 in pdfs1) {
-            var p1 = pdfs1[n1];
-            var match = null;
-            var matchN2 = null;
+        // Primeiro passo: matches por CB e Nosso Numero (alta confiança)
+        for (var n1 in infos1) {
+            var info1 = infos1[n1];
+            var melhor = null, melhorN2 = null;
 
-            for (var n2 in pdfs2) {
+            for (var n2 in infos2) {
                 if (usados2[n2]) continue;
-                var p2 = pdfs2[n2];
-                var result = encontrarMatch(n1, n2, p1.txt, p2.txt);
-                if (result) {
-                    match = result;
-                    matchN2 = n2;
-                    // Se for código de barras, já é o melhor possível — para aqui
-                    if (result.tipo.indexOf('CODIGO') >= 0) break;
+                var info2 = infos2[n2];
+                var result = encontrarMatch(n1, n2, info1, info2);
+                if (result && result.score >= 90) { // Apenas alta confiança no 1o passo
+                    if (!melhor || result.score > melhor.score) {
+                        melhor = result;
+                        melhorN2 = n2;
+                    }
+                    if (result.score === 100) break; // match perfeito, para aqui
                 }
             }
 
-            if (match && matchN2) {
-                pares.push({ n1:n1, n2:matchN2, d1:p1.buf, d2:pdfs2[matchN2].buf, match:match });
-                usados2[matchN2] = true;
-                addLog('[' + match.tipo + '] ' + n1.split('/').pop().substring(0,25) + ' + ' + matchN2.split('/').pop().substring(0,25), 'l-ok');
-            } else {
-                addLog('Pendente: ' + n1.split('/').pop(), 'l-warn');
+            if (melhor && melhorN2) {
+                pares.push({ n1:n1, n2:melhorN2, info1:info1, info2:infos2[melhorN2], match:melhor });
+                usados2[melhorN2] = true;
+                addLog('[' + melhor.tipo + '] ' + n1.split('/').pop().substring(0,30) + ' + ' + melhorN2.split('/').pop().substring(0,25), 'l-ok');
+                delete infos1[n1];
             }
         }
 
-        addLog('Gerando PDFs unidos (' + pares.length + ' pares)...', 'l-info');
-        var finalZip = new JSZip(), pendZip = new JSZip();
+        // Segundo passo: restantes tentam match por VALOR
+        // Verificar ambiguidade: se mais de 1 comprovante tem o mesmo valor, não parear
+        var valoresComprov = {};
+        for (var n2 in infos2) {
+            if (usados2[n2]) continue;
+            var info2 = infos2[n2];
+            var v = info2.valTxt || info2.valNome;
+            if (v) {
+                valoresComprov[v] = (valoresComprov[v] || 0) + 1;
+            }
+        }
 
+        for (var n1 in infos1) {
+            var info1 = infos1[n1];
+            var v1 = info1.valTxt || info1.valNome;
+            var melhor = null, melhorN2 = null;
+
+            if (v1 && valoresComprov[v1] === 1) { // Só pareia se valor único
+                for (var n2 in infos2) {
+                    if (usados2[n2]) continue;
+                    var info2 = infos2[n2];
+                    var result = encontrarMatch(n1, n2, info1, info2);
+                    if (result && result.tipo === 'VALOR') {
+                        melhor = result;
+                        melhorN2 = n2;
+                        break;
+                    }
+                }
+            } else if (v1 && valoresComprov[v1] > 1) {
+                addLog('Valor ambiguo R$' + v1 + ' (' + valoresComprov[v1] + 'x): ' + n1.split('/').pop().substring(0,25), 'l-warn');
+            }
+
+            if (melhor && melhorN2) {
+                pares.push({ n1:n1, n2:melhorN2, info1:info1, info2:infos2[melhorN2], match:melhor });
+                usados2[melhorN2] = true;
+                addLog('[VALOR R$' + v1 + '] ' + n1.split('/').pop().substring(0,30) + ' + ' + melhorN2.split('/').pop().substring(0,25), 'l-ok');
+            } else if (!melhor) {
+                pendentes1.push({ nome: n1.split('/').pop(), bytes: info1.bytes });
+            }
+        }
+
+        // Comprovantes não usados = pendentes
+        for (var n2 in infos2) {
+            if (!usados2[n2]) {
+                pendentes2.push({ nome: n2.split('/').pop(), bytes: infos2[n2].bytes });
+            }
+        }
+
+        addLog('Gerando PDFs (' + pares.length + ' pares)...', 'l-info');
+        var finalZip = new JSZip();
+        var pendZip = new JSZip();
+        var imgZip = new JSZip();
+
+        // PDFs pareados
         for (var i = 0; i < pares.length; i++) {
             var p = pares[i];
             try {
-                var bytes = await mergePDFs(p.d1, p.d2);
-                var label = p.match.tipo === 'VALOR' ? '_R$' + p.match.detalhe.replace('R$ ','') : '_CB';
-                finalZip.file(String(i+1).padStart(3,'0') + label + '.pdf', bytes);
+                var bytes = await mergePDFs(p.info1.bytes, p.info2.bytes);
+                var label = String(i+1).padStart(3,'0') + '_' +
+                    p.n1.split('/').pop().replace(/\.pdf$/i,'').substring(0,30).replace(/[^a-zA-Z0-9_\-]/g,'_') +
+                    '.pdf';
+                finalZip.file(label, bytes);
             } catch(e) {
                 addLog('Erro no par ' + (i+1) + ': ' + e.message, 'l-err');
             }
-            setBar(50 + Math.round(((i+1) / Math.max(pares.length,1)) * 40));
+            setBar(44 + Math.round(((i+1) / Math.max(pares.length,1)) * 45));
         }
 
         // Pendentes
-        var paresN1 = pares.map(function(p){ return p.n1; });
-        for (var n1 in pdfs1) {
-            if (paresN1.indexOf(n1) < 0) pendZip.file('GUIA_' + n1.split('/').pop(), pdfs1[n1].buf);
-        }
-        for (var n2 in pdfs2) {
-            if (!usados2[n2]) pendZip.file('COMPROV_' + n2.split('/').pop(), pdfs2[n2].buf);
-        }
+        pendentes1.forEach(function(p) { pendZip.file('GUIA_' + p.nome, p.bytes); });
+        pendentes2.forEach(function(p) { pendZip.file('COMPROV_' + p.nome, p.bytes); });
 
-        // Relatorio
-        var rel = 'CONCILIACAO\n' + new Date().toLocaleString('pt-BR') + '\nPares: ' + pares.length + '\n\n';
+        // Imagens (PDFs sem texto)
+        imagens.forEach(function(p) { imgZip.file(p.tipo + '_IMAGEM_' + p.nome, p.bytes); });
+
+        // Relatório
+        var rel = 'CONCILIACAO\n' + new Date().toLocaleString('pt-BR') + '\n';
+        rel += '========================================\n';
+        rel += 'Pares encontrados: ' + pares.length + '\n';
+        rel += 'Guias pendentes: ' + pendentes1.length + '\n';
+        rel += 'Comprovantes pendentes: ' + pendentes2.length + '\n';
+        rel += 'PDFs-imagem (sem texto): ' + imagens.length + '\n';
+        rel += '========================================\n\n';
+        rel += 'PARES:\n';
         pares.forEach(function(p, i) {
-            rel += (i+1) + '. [' + p.match.tipo + '] ' + p.match.detalhe + '\n';
+            rel += (i+1) + '. [' + p.match.tipo + ']\n';
             rel += '   GUIA: ' + p.n1.split('/').pop() + '\n';
             rel += '   COMP: ' + p.n2.split('/').pop() + '\n\n';
         });
+        rel += '\nGUIAS SEM COMPROVANTE:\n';
+        pendentes1.forEach(function(p,i){ rel += (i+1) + '. ' + p.nome + '\n'; });
+        rel += '\nCOMPROVANTES SEM GUIA:\n';
+        pendentes2.forEach(function(p,i){ rel += (i+1) + '. ' + p.nome + '\n'; });
+        rel += '\nPDFs-IMAGEM (nao processados):\n';
+        imagens.forEach(function(p,i){ rel += (i+1) + '. [' + p.tipo + '] ' + p.nome + '\n'; });
+
         finalZip.file('RELATORIO.txt', rel);
 
         var bF = await finalZip.generateAsync({ type: 'blob' });
         var bP = await pendZip.generateAsync({ type: 'blob' });
+        var bI = await imgZip.generateAsync({ type: 'blob' });
 
-        document.getElementById('dls').innerHTML =
-            '<a class="dl-btn" href="' + URL.createObjectURL(bF) + '" download="PAREADOS.zip">Baixar PDFs Pareados (' + pares.length + ' pares)</a>' +
-            '<a class="dl-btn" href="' + URL.createObjectURL(bP) + '" download="PENDENTES.zip">Baixar Pendentes</a>';
+        var html = '<a class="dl-btn" href="' + URL.createObjectURL(bF) + '" download="PAREADOS.zip">Baixar PDFs Pareados (' + pares.length + ' pares)</a>';
+        if (pendentes1.length + pendentes2.length > 0)
+            html += '<a class="dl-btn" href="' + URL.createObjectURL(bP) + '" download="PENDENTES.zip">Baixar Pendentes (' + (pendentes1.length+pendentes2.length) + ')</a>';
+        if (imagens.length > 0)
+            html += '<a class="dl-btn dl-img" href="' + URL.createObjectURL(bI) + '" download="IMAGENS.zip">Baixar PDFs-Imagem (' + imagens.length + ')</a>';
+
+        document.getElementById('dls').innerHTML = html;
         document.getElementById('dls').className = 'downloads show';
-
         setBar(100);
-        setMsg('Pronto! ' + pares.length + ' pares encontrados.', 'ok');
+        setMsg('Pronto! ' + pares.length + ' pares | ' + (pendentes1.length+pendentes2.length) + ' pendentes | ' + imagens.length + ' imagens', 'ok');
         addLog('Concluido!', 'l-ok');
 
     } catch(e) {
